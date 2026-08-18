@@ -1,6 +1,6 @@
-const CACHE = "folio-v3";
+const CACHE = "folio-v4";
 const SHELL = [
-  "./pdftools.html",
+  "./index.html",
   "./manifest.webmanifest",
   "./js/boot.js",
   "./js/protect.js",
@@ -39,7 +39,7 @@ self.addEventListener("fetch", event => {
       return res;
     } catch {
       if (cached) return cached;
-      if (event.request.mode === "navigate") return caches.match("./pdftools.html");
+      if (event.request.mode === "navigate") return caches.match("./index.html");
       throw new Error("offline");
     }
   })());
