@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Folio">
+<meta name="application-name" content="Folio">
+<title>Folio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
+<script src="js/boot.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root {
+  --rail: #111318;
+  --desk: #c8cdd6;
+  --panel: #f7f7f5;
+  --ink: #161616;
+  --muted: #6b6b6b;
+  --line: #e4e4e0;
+  --accent: #161616;
+  --frame: #8e95a3;
+  --frame-dark: #3d414c;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 640px at 6% -8%, rgba(232, 238, 255, .95) 0%, transparent 58%),
+    radial-gradient(900px 560px at 100% 0%, rgba(196, 232, 224, .7) 0%, transparent 52%),
+    radial-gradient(800px 480px at 70% 110%, rgba(237, 214, 196, .55) 0%, transparent 50%),
+    linear-gradient(165deg, #c5cde0 0%, #aeb8cb 42%, #98a4b8 100%);
+  overflow: hidden;
+  padding: 12px;
+}
+.shell {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(0, 1fr) 148px;
+  gap: 12px;
+  transition: none;
+}
+.shell.rail-collapsed,
+html.rail-collapsed .shell {
+  grid-template-columns: 72px minmax(0, 1fr) 300px;
+}
+html.folio-ready .shell {
+  transition: grid-template-columns .22s ease;
+}
+.rail {
+  grid-row: 1 / 3;
+  background: var(--rail);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 18px 12px 16px;
+  gap: 6px;
+  border: 1px solid var(--frame-dark);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 16px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #2f323c;
+}
+.logo {
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1;
+  flex: 0 0 40px;
+  align-self: center;
+  border: 1px solid #d8d8d8;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.logo:hover {
+  background: #fff;
+  color: #111;
+  border-color: #c4c4c4;
+  filter: brightness(.97);
+}
+.brand-copy { min-width: 0; }
+.brand-copy strong {
+  display: block;
+  font-weight: 800; font-size: 16px; letter-spacing: -.02em; line-height: 1.1;
+}
+.brand-copy em {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8b909c;
+  letter-spacing: .01em;
+}
+.rail > button:not(.logo) {
+  width: auto; height: 48px; border: 1px solid transparent; border-radius: 12px;
+  background: transparent; color: #9aa0ab; cursor: pointer;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 12px;
+  text-align: left;
+  font: inherit; font-size: 13.5px; font-weight: 650;
+  white-space: nowrap;
+}
+.rail > button:not(.logo) svg { flex: 0 0 auto; }
+.rail > button:not(.logo).on,
+.rail > button:not(.logo):hover {
+  background: #2a2d36; color: #fff;
+  border-color: #4a4e5a;
+}
+.rail .grow { flex: 1; }
+.rail small {
+  font-size: 10px; letter-spacing: .14em; color: #6c7280;
+  writing-mode: horizontal-tb; transform: none;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.rail .install-btn {
+  background: #fff;
+  color: #111;
+  border-color: #fff;
+  margin-top: 4px;
+}
+.rail .install-btn:hover,
+.rail .install-btn:focus-visible {
+  background: #f3f3f3;
+  color: #111;
+  border-color: #e8e8e8;
+}
+.install-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: end center;
+  padding: 20px;
+  background: rgba(17,19,24,.45);
+}
+.install-card {
+  width: min(420px, 100%);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 16px;
+  padding: 20px 18px 16px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.28);
+}
+.install-card b {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.install-card p {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.install-card .btn { width: 100%; margin-top: 6px; }
+@media (display-mode: standalone), (display-mode: minimal-ui) {
+  .install-btn { display: none !important; }
+  body {
+    padding:
+      max(12px, env(safe-area-inset-top, 0px))
+      12px
+      max(12px, env(safe-area-inset-bottom, 0px))
+      12px;
+  }
+}
+.shell.rail-collapsed .brand-copy,
+.shell.rail-collapsed .rail-label,
+.shell.rail-collapsed .rail small,
+html.rail-collapsed .brand-copy,
+html.rail-collapsed .rail-label,
+html.rail-collapsed .rail small {
+  opacity: 0;
+  pointer-events: none;
+}
+html[data-tab="from-pdf"] #sideToPdf,
+html[data-tab="id-card"] #sideToPdf,
+html[data-tab="to-pdf"] #sideFromPdf,
+html[data-tab="id-card"] #sideFromPdf,
+html[data-tab="to-pdf"] #sideIdCard,
+html[data-tab="from-pdf"] #sideIdCard,
+html[data-tab="to-pdf"] #idDesk,
+html[data-tab="from-pdf"] #idDesk,
+html[data-tab="id-card"] #emptyHint,
+html[data-tab="id-card"] #stageStack,
+html[data-tab="id-card"] #nameBar,
+html[data-tab="from-pdf"] #addTile,
+html[data-tab="id-card"] #addTile {
+  display: none !important;
+}
+html[data-tab="id-card"] #idDesk { display: flex !important; }
+html[data-tab="from-pdf"] #canvas.has-pages,
+html[data-tab="id-card"] #canvas {
+  justify-content: stretch;
+  align-items: stretch;
+  padding: 0;
+}
+html[data-tab="from-pdf"] #tabToPdf,
+html[data-tab="id-card"] #tabToPdf {
+  background: transparent;
+  color: #9aa0ab;
+  border-color: transparent;
+}
+html[data-tab="from-pdf"] #tabFromPdf,
+html[data-tab="id-card"] #tabIdCard {
+  background: #2a2d36;
+  color: #fff;
+  border-color: #4a4e5a;
+}
+html:not(.folio-ready) #canvas > *:not(#busy) {
+  visibility: hidden;
+}
+
+.canvas {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px 32px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,255,255,.42) 0%, transparent 46%),
+    linear-gradient(180deg, #d8dee8 0%, #c5ccd8 55%, #b7bfcc 100%);
+  border: 1px solid var(--frame);
+  border-radius: 12px;
+}
+.canvas.has-pages {
+  justify-content: stretch;
+  align-items: stretch;
+  padding: 0;
+}
+.canvas.drop-on::after {
+  content: "Drop files";
+  position: absolute; inset: 16px;
+  border: 2px dashed #111; border-radius: 16px;
+  background: rgba(255,255,255,.45);
+  display: grid; place-items: center;
+  font-size: 22px; font-weight: 700;
+  z-index: 5;
+}
+.stage-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding: 24px 20px 20px;
+}
+.stage-stack.spread {
+  flex-direction: row;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 20px 24px;
+  gap: 20px;
+}
+.stage-sheet {
+  width: min(100%, 480px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.stage-stack.spread .stage-sheet {
+  width: min(70vw, 720px);
+}
+.stage-page {
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(0,0,0,.16);
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #111;
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.page-inner {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.stage-page img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+}
+.stage-stack.anim-rotate .stage-page img {
+  transition: transform .42s cubic-bezier(.22, 1, .36, 1), width .42s ease, height .42s ease;
+}
+.page-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(17,17,17,.1);
+  border-radius: 50%;
+  background: rgba(255,255,255,.96);
+  color: #161616;
+  box-shadow: 0 4px 10px rgba(17,17,17,.16);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 0;
+  backdrop-filter: blur(8px);
+  transition: background .15s ease, color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.page-x svg {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+.page-x:hover {
+  background: #e23d3d;
+  color: #fff;
+  border-color: #e23d3d;
+  transform: scale(1.06);
+  box-shadow: 0 6px 12px rgba(226,61,61,.28);
+}
+.page-x:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+}
+.id-card .page-x {
+  top: 5px;
+  right: 5px;
+  width: 18px;
+  height: 18px;
+}
+.id-card .page-x svg {
+  width: 8px;
+  height: 8px;
+}
+.page-tag {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #5c6370;
+  font-weight: 700;
+  text-align: center;
+}
+.name-bar {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-top: 1px solid rgba(17,17,17,.12);
+  background: rgba(247,247,245,.92);
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  min-width: 0;
+}
+.name-bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hint {
+  text-align: center; color: #4a5060;
+  background: rgba(255,255,255,.55);
+  border: 1px dashed #8b93a3;
+  border-radius: 16px;
+  padding: 48px 28px;
+  max-width: 420px;
+}
+.hint b { display: block; font-size: 22px; color: #111; margin-bottom: 8px; }
+.hint button { margin-top: 16px; }
+
+.side {
+  background: var(--panel);
+  border: 1px solid #b8b8b0;
+  border-radius: 12px;
+  display: flex; flex-direction: column;
+  padding: 22px 20px;
+  overflow: auto;
+}
+.side h2 { margin: 0 0 4px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.side h3 { margin: 0 0 22px; font-size: 22px; font-weight: 700; }
+.field { margin-bottom: 14px; }
+.field-label,
+.field > label:not(.toggle) {
+  display: block;
+  height: 16px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: start;
+}
+.field-row .field {
+  grid-column: span 6;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  min-width: 0;
+}
+.field-row.portrait-only .field-orient { grid-column: span 12; }
+.field-row.portrait-only .field-rotate { display: none; }
+.field-row .field.span-12 { grid-column: span 12; }
+.side select {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  line-height: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b6b6b' d='M1.2 1.2 6 6l4.8-4.8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 7px;
+  padding-right: 28px;
+}
+.toggle {
+  position: relative;
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  line-height: 0;
+  cursor: pointer;
+}
+.toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-face {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  line-height: 1;
+  transition: border-color .2s, box-shadow .2s;
+}
+.toggle-opt {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  min-width: 22px;
+  text-align: center;
+  color: #b0b0aa;
+  transition: color .2s;
+}
+.toggle-opt.no { color: var(--ink); }
+.switch {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 22px;
+  border-radius: 999px;
+  background: #d8d8d4;
+  position: relative;
+  transition: background .2s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.18);
+  transition: transform .2s ease;
+}
+.toggle input:checked + .toggle-face .toggle-opt.no { color: #b0b0aa; }
+.toggle input:checked + .toggle-face .toggle-opt.yes { color: var(--ink); }
+.toggle input:checked + .toggle-face .switch { background: #161616; }
+.toggle input:checked + .toggle-face .switch::after { transform: translateX(20px); }
+.toggle input:focus-visible + .toggle-face { box-shadow: 0 0 0 3px rgba(22,22,22,.15); }
+.toggle:hover .toggle-face { border-color: #c8c8c2; }
+select, .btn {
+  width: 100%; height: 40px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: #fff; color: var(--ink);
+  font: inherit; font-size: 13.5px; padding: 0 10px;
+}
+.btn { cursor: pointer; font-weight: 700; }
+.btn.primary { background: #161616; color: #fff; border-color: #161616; margin-top: 8px; }
+.btn.ghost { background: #fff; margin-top: 8px; border-style: solid; }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.meta { margin-top: auto; font-size: 12px; color: var(--muted); line-height: 1.5; padding-top: 16px; }
+.busy {
+  position: absolute; inset: 0;
+  background: rgba(200,205,214,.55);
+  display: none; place-items: center;
+}
+.busy.on { display: grid; }
+.spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid #fff; border-top-color: #111;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.strip {
+  grid-column: 2 / 4;
+  background: #ecece8;
+  border: 1px solid #b4b4ac;
+  border-radius: 12px;
+  display: flex; align-items: stretch; gap: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+.add-tile, .shot {
+  flex: 0 0 92px; height: 124px; border-radius: 10px;
+  border: 1px solid #c4c4be; background: #fff; cursor: pointer;
+  position: relative; overflow: hidden;
+}
+.add-tile {
+  display: grid; place-items: center; color: var(--muted);
+  border: 1px dashed #9a9a94; background: transparent; font-size: 28px;
+}
+.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shot.on { border: 2px solid #111; }
+.shot .n {
+  position: absolute; left: 6px; top: 6px;
+  background: #111; color: #fff; font-size: 10px; font-weight: 700;
+  min-width: 18px; height: 18px; border-radius: 999px;
+  display: grid; place-items: center; padding: 0 5px;
+}
+.shot .x {
+  position: absolute; right: 4px; top: 4px;
+  width: 20px; height: 20px; border: 0; border-radius: 50%;
+  background: #111; color: #fff; font-size: 14px; line-height: 1;
+  cursor: pointer; display: grid; place-items: center; z-index: 2;
+}
+.shot .nm {
+  display: none;
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 14px 5px 5px;
+  background: linear-gradient(transparent, rgba(0,0,0,.72));
+  color: #fff;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side input[type=range] {
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  accent-color: #161616;
+}
+.btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+.btn-row .btn { margin-top: 0; }
+#sideFromPdf .extract-dl { margin: 8px 0; }
+#sideIdCard .btn { margin-top: 0; }
+#sideIdCard {
+  padding: 16px 14px;
+}
+#sideIdCard h3 { margin: 0 0 12px; font-size: 20px; }
+#sideIdCard .field { margin-bottom: 8px; }
+#sideIdCard .field-row { gap: 8px; margin-bottom: 8px; }
+#sideIdCard .field-label,
+#sideIdCard .field > label:not(.toggle) {
+  height: 14px;
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+#sideIdCard select,
+#sideIdCard .btn {
+  height: 34px;
+}
+#sideIdCard select {
+  line-height: 32px;
+  font-size: 12.5px;
+  padding: 0 24px 0 8px;
+  background-position: right 8px center;
+}
+#sideIdCard .id-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+#sideIdCard .id-actions .span-2 { grid-column: span 2; }
+#sideIdCard .id-actions .btn-row { margin: 0; }
+#sideIdCard .btn.primary { margin-top: 0; }
+#sideIdCard .btn.ghost { margin-top: 0; }
+#sideIdCard .meta { padding-top: 10px; }
+#sideIdCard input[type=range] { height: 20px; }
+
+.id-desk {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 24px;
+}
+.id-sheet {
+  position: relative;
+  width: 210px;
+  height: 297px;
+  background: #fff;
+  border: 1px solid #111;
+  box-shadow: 0 18px 44px rgba(0,0,0,.16);
+  padding: 6% 0 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8mm;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+.id-sheet.pos-top {
+  justify-content: flex-start;
+  padding-top: 10mm;
+}
+.id-sheet.pos-center {
+  justify-content: center;
+  padding-top: 6%;
+}
+.id-sheet-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #5c6370;
+  pointer-events: none;
+}
+.id-sheet .page-tag { display: none; }
+.id-pair {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: inherit;
+  width: 100%;
+}
+.id-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex: 0 0 auto;
+}
+.id-card {
+  position: relative;
+  width: 40.76%;
+  aspect-ratio: 85.6 / 53.98;
+  background: #fff;
+  border: 1px solid #111;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.id-card.empty {
+  border-style: dashed;
+  background: rgba(255,255,255,.62);
+  cursor: pointer;
+  box-shadow: none;
+}
+.id-card.on { outline: 2px solid #111; outline-offset: 3px; }
+.id-card:active { cursor: grabbing; }
+.id-card img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  display: none;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.id-empty-msg {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 650;
+  color: #5c6370;
+  padding: 16px;
+  pointer-events: none;
+}
+.id-card.empty .id-empty-msg { display: grid; }
+.id-card.empty .page-x { display: none; }
+.empty-shot {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+input[type=file] { display: none; }
+.hidden { display: none !important; }
+
+@media (max-width: 860px) {
+  body { overflow: auto; }
+  .shell {
+    height: auto; min-height: 100%;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 70vh auto auto;
+    gap: 10px;
+  }
+  .rail {
+    grid-row: auto; flex-direction: row; padding: 8px 12px;
+    justify-content: flex-start; gap: 8px; align-items: center;
+  }
+  .rail small, .rail .grow { display: none; }
+  .shell.rail-collapsed .brand-copy,
+  .shell.rail-collapsed .rail-label,
+  html.rail-collapsed .brand-copy,
+  html.rail-collapsed .rail-label {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .brand { padding: 0 8px 0 0; margin: 0; border-bottom: 0; }
+  .logo { margin: 0; }
+  .side { border: 1px solid #b8b8b0; }
+  .strip { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail" id="rail">
+    <div class="brand">
+      <button type="button" class="logo" id="railToggle" aria-label="Collapse" aria-expanded="true" title="Collapse">F</button>
+      <div class="brand-copy">
+        <strong>Folio</strong>
+        <em>Pages in. Files out. Nothing uploaded.</em>
+      </div>
+    </div>
+    <button type="button" class="on" id="tabToPdf" title="Images to PDF">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="7" height="7" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><path d="M4 16h16v4H4z"/></svg>
+      <span class="rail-label">Images to PDF</span>
+    </button>
+    <button type="button" id="tabFromPdf" title="PDF to images">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h5"/></svg>
+      <span class="rail-label">PDF to images</span>
+    </button>
+    <button type="button" id="tabIdCard" title="ID / Bank Card">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><rect x="5" y="8.5" width="5" height="7" rx="1"/><path d="M13 9.5h5.5M13 12.2h4.2M13 14.9h3"/></svg>
+      <span class="rail-label">ID / Bank Card</span>
+    </button>
+    <div class="grow"></div>
+    <button type="button" class="install-btn" id="installBtn" title="Install app">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>
+      <span class="rail-label">Install app</span>
+    </button>
+    <small id="railBadge">LOCAL</small>
+  </aside>
+
+  <main class="canvas" id="canvas">
+    <div id="emptyHint" class="hint">
+      <b id="hintTitle">Drop images onto the desk</b>
+      <div id="hintText">They become PDF pages. Scroll the middle to read the full document in order.</div>
+      <button class="btn primary" type="button" id="chooseBtn" style="width:auto;padding:0 18px">Open files</button>
+    </div>
+    <div id="idDesk" class="id-desk hidden">
+      <div class="id-sheet pos-center" id="idSheet">
+      <div class="id-pair">
+        <div class="id-slot">
+          <div class="id-card empty" data-side="front" id="idFrontCard">
+            <img alt="Front">
+            <div class="id-empty-msg">Front<br>Drop or open photo</div>
+            <button class="page-x" type="button" title="Remove" aria-label="Remove" data-side="front"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+          </div>
+          <div class="page-tag">Front · 85.6 × 54 mm</div>
+        </div>
+        <div class="id-slot">
+          <div class="id-card empty" data-side="back" id="idBackCard">
+            <img alt="Back">
+            <div class="id-empty-msg">Back<br>Drop or open photo</div>
+            <button class="page-x" type="button" title="Remove" aria-label="Remove" data-side="back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+          </div>
+          <div class="page-tag">Back · 85.6 × 54 mm</div>
+        </div>
+      </div>
+      <div class="id-sheet-label" id="idSheetLabel">A4 · 210 × 297 mm</div>
+      </div>
+    </div>
+    <div id="stageStack" class="stage-stack hidden"></div>
+    <div id="nameBar" class="name-bar hidden"><span id="nameBarText"></span></div>
+    <div id="busy" class="busy"><div class="spinner"></div></div>
+  </main>
+
+  <aside class="side" id="sideToPdf">
+    <h2>Tool</h2>
+    <h3>Images → PDF</h3>
+    <div class="field"><label>Page size</label>
+      <select id="pageSize">
+        <option value="a4">A4</option>
+        <option value="letter">Letter</option>
+        <option value="legal">Legal</option>
+        <option value="a5">A5</option>
+      </select>
+    </div>
+    <div class="field-row portrait-only" id="orientRow">
+      <div class="field field-orient">
+        <label class="field-label" for="orientation">Orientation</label>
+        <select id="orientation">
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </div>
+      <div class="field field-rotate">
+        <span class="field-label" id="rotateLbl">Rotate</span>
+        <label class="toggle" aria-labelledby="rotateLbl">
+          <input id="rotateMatch" type="checkbox" checked>
+          <span class="toggle-face">
+            <span class="toggle-opt no">No</span>
+            <span class="switch" aria-hidden="true"></span>
+            <span class="toggle-opt yes">Yes</span>
+          </span>
+        </label>
+      </div>
+    </div>
+    <div class="field"><label>Image fit</label>
+      <select id="fit">
+        <option value="contain">Fit inside</option>
+        <option value="cover">Fill / crop</option>
+      </select>
+    </div>
+    <div class="field"><label>Margin</label>
+      <select id="margin">
+        <option value="0" selected>None</option>
+        <option value="5">5 mm</option>
+        <option value="10">10 mm</option>
+        <option value="15">15 mm</option>
+      </select>
+    </div>
+    <button id="downloadBtn" class="btn primary" type="button" disabled>Download PDF</button>
+    <button id="clearBtn" class="btn ghost" type="button">Clear pages</button>
+    <div class="meta" id="status">No pages yet. Add images from the strip or drop them on the canvas.</div>
+  </aside>
+
+  <aside class="side hidden" id="sideFromPdf">
+    <h2>Tool</h2>
+    <h3>PDF → Images</h3>
+    <div class="field"><label>Extract</label>
+      <select id="extractMode">
+        <option value="embedded">Embedded images</option>
+        <option value="pages" selected>Each page as an image</option>
+      </select>
+    </div>
+    <div class="field"><label>Page quality</label>
+      <select id="pageScale">
+        <option value="1.5">Standard</option>
+        <option value="2" selected>High</option>
+        <option value="3">Print</option>
+      </select>
+    </div>
+    <button id="choosePdfBtn" class="btn primary" type="button">Open PDF</button>
+    <div class="btn-row extract-dl">
+      <button id="downloadThisBtn" class="btn" type="button" disabled>This image</button>
+      <button id="downloadEachBtn" class="btn" type="button" disabled>All images</button>
+    </div>
+    <button id="downloadAllBtn" class="btn primary" type="button" disabled>Download ZIP</button>
+    <button id="extractClearBtn" class="btn ghost" type="button">Clear</button>
+    <div class="meta" id="extractNote">Open a PDF. Pages appear in the strip. Click one to view it large.</div>
+  </aside>
+
+  <aside class="side hidden" id="sideIdCard">
+    <h2>Tool</h2>
+    <h3>ID Card</h3>
+    <div class="field">
+      <label>Card type</label>
+      <select id="idCardType">
+        <option value="nid" selected>NID Card — 85.6 × 54 mm</option>
+        <option value="bank">Bank Card — 86 × 54 mm</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Card position</label>
+      <select id="idPlace">
+        <option value="top">Top middle</option>
+        <option value="center" selected>Center middle</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Page size</label>
+        <select id="idPageSize">
+          <option value="a4" selected>A4</option>
+          <option value="letter">Letter</option>
+          <option value="legal">Legal</option>
+          <option value="a5">A5</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Orientation</label>
+        <select id="idOrientation">
+          <option value="portrait" selected>Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Selected side</label>
+      <select id="idSide">
+        <option value="front">Front</option>
+        <option value="back">Back</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Rotate</label>
+      <div class="btn-row">
+        <button class="btn" type="button" id="idRotL">Left</button>
+        <button class="btn" type="button" id="idRotR">Right</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Fine rotate <span id="idTiltVal">0°</span></label>
+      <input id="idTilt" type="range" min="-180" max="180" step="1" value="0">
+    </div>
+    <div class="field">
+      <label>Zoom / crop <span id="idZoomVal">100%</span></label>
+      <input id="idZoom" type="range" min="100" max="280" value="100">
+    </div>
+    <div class="id-actions">
+      <button id="idResetBtn" class="btn" type="button">Reset crop</button>
+      <button id="idOpenBtn" class="btn" type="button">Open photo</button>
+      <button id="idPdfBtn" class="btn primary" type="button" disabled>Download PDF</button>
+      <button id="idPngBtn" class="btn" type="button" disabled>Download PNG</button>
+      <button id="idClearBtn" class="btn ghost span-2" type="button">Clear both</button>
+    </div>
+    <div class="meta" id="idStatus">Open front and back. Fit each photo inside the card frame, then download.</div>
+  </aside>
+
+  <div class="strip" id="strip">
+    <button type="button" class="add-tile" id="addTile" title="Add">+</button>
+  </div>
+</div>
+<input id="files" type="file" accept="image/*" multiple>
+<input id="pdfFile" type="file" accept="application/pdf,.pdf">
+<input id="idFiles" type="file" accept="image/*" multiple>
+<div class="install-sheet hidden" id="installSheet" hidden>
+  <div class="install-card">
+    <b>Install Folio</b>
+    <p data-ios hidden>Tap the Share button, then <b style="color:#161616">Add to Home Screen</b>. Folio opens like an app, with no browser chrome.</p>
+    <p data-chrome>Use the install icon in the address bar, or tap <b style="color:#161616">Install app</b> in the left menu. After that it opens in its own window.</p>
+    <button class="btn primary" type="button" data-close>Got it</button>
+  </div>
+</div>
+<script>if (window.folioBoot) window.folioBoot();</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
