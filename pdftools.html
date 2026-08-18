@@ -14,6 +14,7 @@
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
 <script src="js/boot.js"></script>
+<script src="js/protect.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -30,7 +31,16 @@
   --frame-dark: #3d414c;
 }
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
+html, body {
+  height: 100%;
+  margin: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, select, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
 body {
   font-family: "Segoe UI", system-ui, sans-serif;
   color: var(--ink);
@@ -548,6 +558,22 @@ select, .btn {
   display: none; place-items: center;
 }
 .busy.on { display: grid; }
+.no-inspect-cover {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #111318;
+  color: #fff;
+  place-items: center;
+  text-align: center;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: .02em;
+  padding: 24px;
+}
+html.no-inspect .no-inspect-cover { display: grid; }
+html.no-inspect .shell { filter: blur(12px); pointer-events: none; }
 .spinner {
   width: 28px; height: 28px; border-radius: 50%;
   border: 3px solid #fff; border-top-color: #111;
@@ -1015,6 +1041,7 @@ input[type=file] { display: none; }
     <button class="btn primary" type="button" data-close>Got it</button>
   </div>
 </div>
+<div class="no-inspect-cover" aria-hidden="true">Developer tools are not allowed on this page.</div>
 <script>if (window.folioBoot) window.folioBoot();</script>
 <script type="module" src="js/app.js"></script>
 </body>

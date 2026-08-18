@@ -1,8 +1,9 @@
-const CACHE = "folio-v2";
+const CACHE = "folio-v3";
 const SHELL = [
   "./pdftools.html",
   "./manifest.webmanifest",
   "./js/boot.js",
+  "./js/protect.js",
   "./js/app.js",
   "./img/icon-192.png",
   "./img/icon-512.png",
