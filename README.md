@@ -8,18 +8,6 @@ Local web app for everyday PDF work. Nothing is uploaded. Files stay on this dev
 2. **PDF → Images** — open a PDF, preview pages, download one image, all images, or a ZIP  
 3. **ID / Bank Card** — fit phone photos of an NID or bank card (front + back) onto a page
 
-## Run it
-
-Open the folder in a local server. Do not double-click the HTML file if you want install or PDF preview to work.
-
-```bash
-py -3 -m http.server 8080
-```
-
-Then open:
-
-[http://localhost:8080/pdftools.html](http://localhost:8080/pdftools.html)
-
 ## Install as an app
 
 In Chrome (or Edge), click **Install app** in the left menu, or use the install icon in the address bar. After that Folio opens in its own window.
@@ -49,22 +37,3 @@ On iPhone: tap **Install app**, then Share → Add to Home Screen.
 - Download PDF or PNG at true card size
 
 Settings (tool, page size, rail) are remembered in the browser. ID card photos are stored in IndexedDB on this device only.
-
-## Project files
-
-```
-pdftools.html
-manifest.webmanifest
-sw.js                 ← service worker (stays at root for install)
-js/
-  boot.js             ← restores UI before first paint
-  app.js              ← tools, preview, download
-  sw.js               ← cache logic
-img/
-  icon-192.png
-  icon-512.png
-  icon-maskable-512.png
-  apple-touch-icon.png
-```
-
-Libraries load from CDN: jsPDF, pdf.js, JSZip, SortableJS.
