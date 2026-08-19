@@ -1,10 +1,12 @@
-const CACHE = "folio-v4";
+const CACHE = "folio-v55";
 const SHELL = [
   "./index.html",
   "./manifest.webmanifest",
+  "./css/app.css",
   "./js/boot.js",
   "./js/protect.js",
   "./js/app.js",
+  "./js/folio-extra.js",
   "./img/icon-192.png",
   "./img/icon-512.png",
   "./img/icon-maskable-512.png",

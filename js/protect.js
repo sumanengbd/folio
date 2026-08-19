@@ -1,4 +1,15 @@
 (function () {
+  var host = location.hostname;
+  var local =
+    location.protocol === "file:" ||
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "[::1]" ||
+    host === "::1" ||
+    host === "" ||
+    /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host);
+  if (local) return;
+
   function stop(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -29,7 +40,7 @@
     if (e.key === "F12") return stop(e);
     if (ctrl && e.shiftKey && (k === "i" || k === "j" || k === "c" || k === "k")) return stop(e);
     if (e.metaKey && e.altKey && (k === "i" || k === "j" || k === "c")) return stop(e);
-    if (ctrl && (k === "u" || k === "s" || k === "p")) return stop(e);
+    if (ctrl && (k === "u" || k === "s")) return stop(e);
   }, true);
 
   function devtoolsOpen() {
