@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Folio — PDF Tools",
   "short_name": "Folio",
-  "description": "Images to PDF, PDF to images, and ID / bank card layout. Everything stays on this device.",
+  "description": "Free PDF tools in your browser. Images to PDF, merge, split, compress, and NID or bank card layout. Nothing is uploaded.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

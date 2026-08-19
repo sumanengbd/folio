@@ -1,29 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-ver="1.0">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Folio — Free PDF Tools | Merge, Split, Compress, NID Card</title>
+<meta name="description" content="Free PDF tools in your browser. Images to PDF, PDF to images, merge, split, compress, and NID or bank card layout. Nothing is uploaded. Files stay on this device.">
+<meta name="keywords" content="free PDF tools, merge PDF, split PDF, compress PDF, images to PDF, PDF to images, NID card PDF, bank card, passport photo, no upload">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Suman Ali">
+<meta name="creator" content="Suman Ali">
+<link rel="author" href="https://github.com/sumanengbd/">
+<link rel="canonical" href="https://sumanengbd.github.io/folio/">
 <meta name="theme-color" content="#4f46e5">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Folio">
 <meta name="application-name" content="Folio">
-<title>Folio</title>
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sumanengbd.github.io/folio/">
+<meta property="og:site_name" content="Folio">
+<meta property="og:title" content="Folio — Free PDF Tools | Merge, Split, Compress, NID Card">
+<meta property="og:description" content="Make, merge, split, and compress PDFs in the browser. Print NID or bank cards. Nothing is uploaded.">
+<meta property="og:image" content="https://sumanengbd.github.io/folio/img/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Folio — Free PDF Tools">
+<meta name="twitter:description" content="Images to PDF, merge, split, compress, NID card. Files stay on this device.">
+<meta name="twitter:url" content="https://sumanengbd.github.io/folio/">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=54">
-<script src="js/boot.js?v=29"></script>
-<script src="js/protect.js?v=28"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<link rel="stylesheet" href="css/app.css?v=63">
+<script src="js/boot.js?v=30"></script>
+<script src="js/protect.js?v=29"></script>
+<script src="js/vendor/sortable.min.js"></script>
+<script src="js/vendor/jspdf.umd.min.js"></script>
+<script src="js/vendor/jszip.min.js"></script>
+<script src="js/vendor/pdf-lib.min.js"></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Folio","url":"https://sumanengbd.github.io/folio/","softwareVersion":"1.0","description":"Free PDF tools in your browser. Images to PDF, merge, split, compress, and NID or bank card layout. Nothing is uploaded.","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Suman Ali","url":"https://github.com/sumanengbd/"}}
+</script>
 </head>
 <body>
 <div class="shell">
   <aside class="rail" id="rail">
+    <div class="rail-main">
     <div class="brand">
       <button type="button" class="logo" id="railToggle" aria-label="Collapse" aria-expanded="true" title="Collapse">F</button>
       <div class="brand-copy">
@@ -66,12 +87,14 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
     </button>
     </div>
+    </div>
     <div class="rail-foot">
-      <small id="railBadge">Local</small>
+      <small id="railBadge" title="Files stay on this device">Local</small>
       <button type="button" class="install-btn" id="installBtn" title="Install app">
         <span class="rail-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg></span>
         <span class="rail-label">Install</span>
       </button>
+      <span class="ver-foot" title="Folio version 1.0">v1.0</span>
     </div>
   </aside>
 
@@ -396,13 +419,13 @@
 <div class="install-sheet hidden" id="installSheet" hidden>
   <div class="install-card">
     <b>Install Folio</b>
-    <p data-ios hidden>Tap the Share button, then <b style="color:#161616">Add to Home Screen</b>. Folio opens like an app, with no browser chrome.</p>
-    <p data-chrome>Use the install icon in the address bar, or tap <b style="color:#161616">Install</b> in the left menu. After that it opens in its own window.</p>
+    <p data-ios hidden>Tap the Share button, then <b style="color:#161616">Add to Home Screen</b>. Folio opens like an app and keeps working with no internet.</p>
+    <p data-chrome>Use the install icon in the address bar, or tap <b style="color:#161616">Install</b> in the left menu. After that it opens in its own window and works offline.</p>
     <button class="btn primary" type="button" data-close>Got it</button>
   </div>
 </div>
 <div class="no-inspect-cover" aria-hidden="true">Developer tools are not allowed on this page.</div>
 <script>if (window.folioBoot) window.folioBoot();</script>
-<script type="module" src="js/app.js?v=32"></script>
+<script type="module" src="js/app.js?v=34"></script>
 </body>
 </html>

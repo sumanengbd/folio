@@ -1,15 +1,4 @@
 (function () {
-  var host = location.hostname;
-  var local =
-    location.protocol === "file:" ||
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "[::1]" ||
-    host === "::1" ||
-    host === "" ||
-    /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host);
-  if (local) return;
-
   function stop(e) {
     e.preventDefault();
     e.stopPropagation();

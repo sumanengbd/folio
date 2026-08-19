@@ -1,6 +1,6 @@
-import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.54/pdf.min.mjs";
-import { parsePageRange, imageFormatSpec, renameExt, compressPreset, applyTextOp, textStats, rotateImageBlob } from "./folio-extra.js?v=24";
-pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.54/pdf.worker.min.mjs";
+import * as pdfjsLib from "./vendor/pdf.min.mjs";
+import { parsePageRange, imageFormatSpec, renameExt, compressPreset, applyTextOp, textStats, rotateImageBlob } from "./folio-extra.js";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdf.worker.min.mjs", import.meta.url).href;
 
 const { jsPDF } = window.jspdf;
 const PDFLib = window.PDFLib;
@@ -2376,9 +2376,9 @@ syncIdSheet();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
+  if (badge) badge.textContent = "Local";
   if (standalone) {
     document.documentElement.classList.add("standalone");
-    if (badge) badge.textContent = "APP";
     return;
   }
   let deferred = null;
@@ -2390,7 +2390,6 @@ syncIdSheet();
   window.addEventListener("appinstalled", () => {
     deferred = null;
     if (btn) btn.hidden = true;
-    if (badge) badge.textContent = "APP";
   });
   if (btn) {
     btn.onclick = async () => {

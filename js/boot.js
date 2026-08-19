@@ -1,4 +1,7 @@
 (function () {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").catch(function () {});
+  }
   var KEY = "folio-ui";
   var TABS = {
     "to-pdf": 1,

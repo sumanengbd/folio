@@ -14,9 +14,11 @@ Local web app for everyday PDF work. Nothing is uploaded. Files stay on this dev
 
 ## Install as an app
 
-In Chrome (or Edge), click **Install app** in the left menu, or use the install icon in the address bar. After that Folio opens in its own window.
+In Chrome (or Edge), click **Install** in the left menu, or use the install icon in the address bar. After that Folio opens in its own window.
 
-On iPhone: tap **Install app**, then Share → Add to Home Screen.
+On iPhone: tap **Install**, then Share → Add to Home Screen.
+
+Open the site once while online so it can save itself. After that the installed app works with no internet. All PDF libraries are stored on this device.
 
 ## Images → PDF
 
