@@ -1,4 +1,4 @@
-const VERSION = "1.0";
+const VERSION = "1.0.2";
 const CACHE = "folio-v" + VERSION;
 const SHELL = [
   "./index.html",
@@ -7,6 +7,7 @@ const SHELL = [
   "./css/app.css",
   "./js/boot.js",
   "./js/protect.js",
+  "./js/stats.js",
   "./js/app.js",
   "./js/folio-extra.js",
   "./js/vendor/sortable.min.js",

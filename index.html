@@ -30,9 +30,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=63">
+<link rel="stylesheet" href="css/app.css?v=65">
 <script src="js/boot.js?v=30"></script>
-<script src="js/protect.js?v=29"></script>
+<script src="js/protect.js?v=30"></script>
 <script src="js/vendor/sortable.min.js"></script>
 <script src="js/vendor/jspdf.umd.min.js"></script>
 <script src="js/vendor/jszip.min.js"></script>
@@ -89,6 +89,16 @@
     </div>
     </div>
     <div class="rail-foot">
+      <div class="rail-stats" id="railStats" title="Anonymous visit count. Files stay on this device.">
+        <div class="stat stat-live">
+          <b id="statLive">–</b>
+          <span>Live</span>
+        </div>
+        <div class="stat">
+          <b id="statTotal">–</b>
+          <span>Visitors</span>
+        </div>
+      </div>
       <small id="railBadge" title="Files stay on this device">Local</small>
       <button type="button" class="install-btn" id="installBtn" title="Install app">
         <span class="rail-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg></span>
@@ -426,6 +436,7 @@
 </div>
 <div class="no-inspect-cover" aria-hidden="true">Developer tools are not allowed on this page.</div>
 <script>if (window.folioBoot) window.folioBoot();</script>
+<script src="js/stats.js?v=1"></script>
 <script type="module" src="js/app.js?v=34"></script>
 </body>
 </html>
