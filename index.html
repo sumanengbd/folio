@@ -30,9 +30,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=65">
-<script src="js/boot.js?v=30"></script>
-<script src="js/protect.js?v=30"></script>
+<link rel="stylesheet" href="css/app.css?v=76">
+<script src="js/boot.js?v=31"></script>
+<script src="js/protect.js?v=31"></script>
 <script src="js/vendor/sortable.min.js"></script>
 <script src="js/vendor/jspdf.umd.min.js"></script>
 <script src="js/vendor/jszip.min.js"></script>
@@ -117,7 +117,7 @@
       <b id="hintTitle">Drop images onto the desk</b>
       <div id="hintText">They become PDF pages. Scroll the middle to read the full document in order.</div>
       <button class="btn primary btn-inline" type="button" id="chooseBtn">Open files</button>
-      <div class="hint-drop">or drop files on the desk</div>
+      <div class="hint-drop">PNG, JPG, WEBP · or click to open</div>
     </div>
     <div id="idDesk" class="id-desk hidden">
       <div class="id-sheet pos-center" id="idSheet">
@@ -148,9 +148,24 @@
     <div id="stageStack" class="stage-stack hidden"></div>
     <div id="nameBar" class="name-bar hidden"><span id="nameBarText"></span></div>
     <div class="zoom-bar" id="zoomBar">
+      <button type="button" id="undoBtn" title="Undo (Ctrl+Z)" disabled aria-label="Undo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+      </button>
+      <button type="button" id="redoBtn" title="Redo (Ctrl+Y)" disabled aria-label="Redo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg>
+      </button>
       <button type="button" id="zoomOut" title="Zoom out">−</button>
       <span id="zoomVal" title="Reset to 100%">100%</span>
       <button type="button" id="zoomIn" title="Zoom in">+</button>
+    </div>
+    <div id="dropOverlay" class="drop-overlay" hidden>
+      <div class="drop-card">
+        <span class="drop-ico" aria-hidden="true">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 16V4"/><path d="m8 8 4-4 4 4"/><rect x="4" y="16" width="16" height="5" rx="1.5"/></svg>
+        </span>
+        <b id="dropTitle">Drop to add</b>
+        <span id="dropSub">Images become PDF pages</span>
+      </div>
     </div>
     <div id="busy" class="busy"><div class="spinner"></div></div>
   </main>
@@ -201,6 +216,67 @@
         <option value="15">15 mm</option>
       </select>
     </div>
+    <div id="imgAdjust" hidden>
+      <div class="field">
+        <span class="field-label">Image</span>
+        <label class="toggle" title="Apply edits to every page">
+          <input id="adjAll" type="checkbox">
+          <span class="toggle-face">
+            <span class="toggle-copy"><span class="off">This page</span><span class="on">All pages</span></span>
+            <span class="switch" aria-hidden="true"></span>
+          </span>
+        </label>
+      </div>
+      <div class="field"><label>Brightness <span id="adjBrightVal">100%</span></label>
+        <div class="range-wrap"><input id="adjBright" type="range" min="50" max="150" value="100"></div>
+      </div>
+      <div class="field"><label>Contrast <span id="adjContrastVal">100%</span></label>
+        <div class="range-wrap"><input id="adjContrast" type="range" min="50" max="150" value="100"></div>
+      </div>
+      <div class="field"><label>Saturation <span id="adjSaturateVal">100%</span></label>
+        <div class="range-wrap"><input id="adjSaturate" type="range" min="0" max="200" value="100"></div>
+      </div>
+      <div class="field"><label>Sharpness <span id="adjSharpVal">0</span></label>
+        <div class="range-wrap"><input id="adjSharp" type="range" min="0" max="100" value="0"></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <span class="field-label">Grayscale</span>
+          <label class="toggle">
+            <input id="adjGray" type="checkbox">
+            <span class="toggle-face">
+              <span class="toggle-copy"><span class="off">Off</span><span class="on">On</span></span>
+              <span class="switch" aria-hidden="true"></span>
+            </span>
+          </label>
+        </div>
+        <div class="field">
+          <span class="field-label">Black &amp; white</span>
+          <label class="toggle">
+            <input id="adjBw" type="checkbox">
+            <span class="toggle-face">
+              <span class="toggle-copy"><span class="off">Off</span><span class="on">On</span></span>
+              <span class="switch" aria-hidden="true"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="field"><label>Background</label>
+        <div class="bg-picks" id="adjBg">
+          <button type="button" data-bg="#ffffff" class="on" title="White"></button>
+          <button type="button" data-bg="#f3efe8" title="Cream"></button>
+          <button type="button" data-bg="#e5e7eb" title="Gray"></button>
+          <button type="button" data-bg="#111111" title="Black"></button>
+        </div>
+      </div>
+      <div class="field">
+        <button id="adjReset" class="btn ghost" type="button">Reset</button>
+      </div>
+    </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
+    </div>
     <div class="side-actions">
       <div class="btn-row">
         <button id="downloadBtn" class="btn primary" type="button" disabled>Download PDF</button>
@@ -238,6 +314,10 @@
         <option value="jpg">JPG</option>
         <option value="webp">WebP</option>
       </select>
+    </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row"><span>Source PDF</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated images</span><b data-size="out">—</b></div>
     </div>
     <div class="side-actions">
       <button id="choosePdfBtn" class="btn" type="button">Open PDF</button>
@@ -315,6 +395,10 @@
       <label>Zoom / crop <span id="idZoomVal">100%</span></label>
       <input id="idZoom" type="range" min="100" max="280" value="100">
     </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row"><span>Photos</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
+    </div>
     <div class="side-actions">
       <div class="btn-row">
         <button id="idOpenBtn" class="btn" type="button">Open photo</button>
@@ -335,6 +419,10 @@
       <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Merge PDFs</h2>
       <p class="side-lead">Combine several PDFs into one file. Drag the strip to set order.</p>
     </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
+    </div>
     <div class="side-actions">
       <button id="mergeOpenBtn" class="btn" type="button">Add PDFs</button>
       <div class="btn-row">
@@ -353,6 +441,10 @@
     </div>
     <div class="field"><label>Pages</label>
       <input id="splitRange" type="text" placeholder="All, or 1–3, 5, 8">
+    </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row"><span>Source PDF</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
     </div>
     <div class="side-actions">
       <button id="splitOpenBtn" class="btn" type="button">Open PDF</button>
@@ -377,6 +469,10 @@
         <option value="medium" selected>Balanced</option>
         <option value="high">Sharper</option>
       </select>
+    </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated file</span><b data-size="out">—</b></div>
     </div>
     <div class="side-actions">
       <button id="compressOpenBtn" class="btn" type="button">Open PDF or images</button>
@@ -434,9 +530,25 @@
     <button class="btn primary" type="button" data-close>Got it</button>
   </div>
 </div>
+<div class="keys-sheet hidden" id="keysSheet" hidden>
+  <div class="keys-card">
+    <b>Shortcuts</b>
+    <ul>
+      <li><kbd>Ctrl</kbd><kbd>O</kbd> Open files</li>
+      <li><kbd>Ctrl</kbd><kbd>S</kbd> Download</li>
+      <li><kbd>Ctrl</kbd><kbd>Z</kbd> Undo</li>
+      <li><kbd>Ctrl</kbd><kbd>Y</kbd> Redo</li>
+      <li><kbd>R</kbd> Rotate page</li>
+      <li><kbd>Del</kbd> Remove page</li>
+      <li><kbd>Ctrl</kbd><kbd>+</kbd> / <kbd>−</kbd> Zoom</li>
+      <li><kbd>?</kbd> This list</li>
+    </ul>
+    <button class="btn primary" type="button" data-close>Got it</button>
+  </div>
+</div>
 <div class="no-inspect-cover" aria-hidden="true">Developer tools are not allowed on this page.</div>
 <script>if (window.folioBoot) window.folioBoot();</script>
 <script src="js/stats.js?v=1"></script>
-<script type="module" src="js/app.js?v=34"></script>
+<script type="module" src="js/app.js?v=38"></script>
 </body>
 </html>

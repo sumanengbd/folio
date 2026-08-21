@@ -1,5 +1,5 @@
 import * as pdfjsLib from "./vendor/pdf.min.mjs";
-import { parsePageRange, imageFormatSpec, renameExt, compressPreset, applyTextOp, textStats, rotateImageBlob } from "./folio-extra.js";
+import { parsePageRange, imageFormatSpec, renameExt, compressPreset, applyTextOp, textStats, rotateImageBlob, fmtBytes, folioDownloadName, defaultAdj, adjCss, applyAdjToCanvas, estimateJpegPdfBytes } from "./folio-extra.js?v=2";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdf.worker.min.mjs", import.meta.url).href;
 
 const { jsPDF } = window.jspdf;
@@ -12,7 +12,8 @@ const state = {
   id: { front: null, back: null, sel: "front" },
   mergeDocs: [], mergeSel: 0,
   workPages: [], workSel: 0, workBytes: null, workPdf: null, workName: "document", workKind: "",
-  viewZoom: 1
+  viewZoom: 1,
+  adjAll: false
 };
 
 const canvas = document.getElementById("canvas");
@@ -77,7 +78,8 @@ function saveMenu() {
     idPlace: document.getElementById("idPlace").value,
     imgFormat: document.getElementById("imgFormat")?.value,
     compressQuality: document.getElementById("compressQuality")?.value,
-    viewZoom: state.viewZoom
+    viewZoom: state.viewZoom,
+    adjAll: !!state.adjAll
   });
 }
 function restoreSelect(id, value) {
@@ -105,6 +107,7 @@ function restoreMenu() {
     restoreSelect("idSide", s.idSel);
   }
   if (typeof s.viewZoom === "number" && s.viewZoom > 0) state.viewZoom = s.viewZoom;
+  if (typeof s.adjAll === "boolean") state.adjAll = s.adjAll;
 }
 
 function idbOpen() {
@@ -252,6 +255,268 @@ function downloadBlob(blob, name) {
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);
 }
+const hist = { stack: [], i: -1, mute: false };
+function cloneAdj(a) {
+  return { brightness: a.brightness, contrast: a.contrast, saturate: a.saturate, sharpness: a.sharpness, gray: !!a.gray, bw: !!a.bw, bg: a.bg || "#ffffff" };
+}
+function snapshot() {
+  return {
+    images: state.images.map(it => ({ ...it, adj: cloneAdj(it.adj || defaultAdj()) })),
+    sel: state.sel,
+    extracted: state.extracted.slice(),
+    extSel: state.extSel,
+    mergeDocs: state.mergeDocs.slice(),
+    mergeSel: state.mergeSel,
+    workPages: state.workPages.map(p => ({ ...p })),
+    workSel: state.workSel,
+    workBytes: state.workBytes,
+    workPdf: state.workPdf,
+    workName: state.workName,
+    workKind: state.workKind,
+    idFront: state.id.front,
+    idBack: state.id.back,
+    idSel: state.id.sel,
+    text: textInput ? textInput.value : "",
+    adjAll: !!state.adjAll
+  };
+}
+function restoreSnap(s) {
+  hist.mute = true;
+  state.images = (s.images || []).map(it => ({ ...it, adj: cloneAdj(it.adj || defaultAdj()) }));
+  state.sel = s.sel;
+  state.extracted = s.extracted.slice();
+  state.extSel = s.extSel;
+  state.mergeDocs = s.mergeDocs.slice();
+  state.mergeSel = s.mergeSel;
+  state.workPages = s.workPages.map(p => ({ ...p }));
+  state.workSel = s.workSel;
+  state.workBytes = s.workBytes;
+  state.workPdf = s.workPdf;
+  state.workName = s.workName;
+  state.workKind = s.workKind;
+  state.id.front = s.idFront;
+  state.id.back = s.idBack;
+  state.id.sel = s.idSel;
+  state.pdfBlob = null;
+  state.adjAll = !!s.adjAll;
+  if (textInput && s.text != null) textInput.value = s.text;
+  const all = document.getElementById("adjAll");
+  if (all) all.checked = state.adjAll;
+  syncAdjUi();
+  applyAdjPreview();
+  rebuildStrip();
+  renderStage();
+  syncSizeMeter();
+  hist.mute = false;
+  syncHistBtns();
+}
+function pushHist() {
+  if (hist.mute) return;
+  hist.stack = hist.stack.slice(0, hist.i + 1);
+  hist.stack.push(snapshot());
+  if (hist.stack.length > 40) hist.stack.shift();
+  hist.i = hist.stack.length - 1;
+  syncHistBtns();
+}
+function undo() {
+  if (hist.i <= 0) return;
+  hist.i -= 1;
+  restoreSnap(hist.stack[hist.i]);
+  setStatus("Undone.");
+}
+function redo() {
+  if (hist.i >= hist.stack.length - 1) return;
+  hist.i += 1;
+  restoreSnap(hist.stack[hist.i]);
+  setStatus("Redone.");
+}
+function syncHistBtns() {
+  const u = document.getElementById("undoBtn");
+  const r = document.getElementById("redoBtn");
+  if (u) u.disabled = hist.i <= 0;
+  if (r) r.disabled = hist.i < 0 || hist.i >= hist.stack.length - 1;
+  document.getElementById("zoomBar")?.classList.toggle("has-hist", hist.i > 0 || (hist.stack.length > 1 && hist.i < hist.stack.length - 1));
+}
+function sourceBytes() {
+  if (state.tab === "to-pdf") return state.images.reduce((n, i) => n + (i.file?.size || 0), 0);
+  if (state.tab === "from-pdf") return state.lastPdf?.size || 0;
+  if (state.tab === "merge") return state.mergeDocs.reduce((n, d) => n + (d.bytes?.byteLength || d.file?.size || 0), 0);
+  if (state.tab === "split" || state.tab === "compress") {
+    if (state.workBytes) return state.workBytes.byteLength;
+    return state.workPages.reduce((n, p) => n + (p.file?.size || p.blob?.size || 0), 0);
+  }
+  if (state.tab === "id-card") return (state.id.front?.file?.size || 0) + (state.id.back?.file?.size || 0);
+  if (state.tab === "text") return new Blob([textInput?.value || ""]).size;
+  return 0;
+}
+function estimateOutBytes() {
+  if (state.tab === "to-pdf") {
+    if (state.pdfBlob) return state.pdfBlob.size;
+    const n = state.images.length;
+    if (!n) return 0;
+    const size = document.getElementById("pageSize").value;
+    const dim = PAGE_MM[size] || PAGE_MM.a4;
+    const land = document.getElementById("orientation").value === "landscape";
+    const margin = Number(document.getElementById("margin").value) || 0;
+    const w = (land ? dim[1] : dim[0]) - margin * 2;
+    const h = (land ? dim[0] : dim[1]) - margin * 2;
+    return estimateJpegPdfBytes(n, w, h, 144, 0.82);
+  }
+  if (state.tab === "from-pdf") {
+    const n = state.extracted.length;
+    if (!n) return 0;
+    const spec = imageFormatSpec();
+    const avg = state.extracted.reduce((s, it) => s + (it.blob?.size || 0), 0) / n;
+    const factor = spec.ext === "jpg" ? 0.55 : spec.ext === "webp" ? 0.45 : 1;
+    return Math.round(n * avg * factor);
+  }
+  if (state.tab === "merge") return Math.round(sourceBytes() * 1.02);
+  if (state.tab === "split") {
+    const nums = typeof splitPageNums === "function" ? splitPageNums() : [];
+    const total = state.workPages.length || 1;
+    return Math.round(sourceBytes() * (nums.length / total));
+  }
+  if (state.tab === "compress") {
+    const q = document.getElementById("compressQuality")?.value;
+    const f = q === "low" ? 0.38 : q === "high" ? 0.78 : 0.55;
+    return Math.round(sourceBytes() * f);
+  }
+  if (state.tab === "id-card") {
+    const has = !!(state.id.front || state.id.back);
+    return has ? estimateJpegPdfBytes(1, 210, 297, 150, 0.9) : 0;
+  }
+  if (state.tab === "text") return sourceBytes();
+  return 0;
+}
+function syncSizeMeter() {
+  const src = fmtBytes(sourceBytes());
+  const out = fmtBytes(estimateOutBytes());
+  document.querySelectorAll("[data-size=src]").forEach(el => { el.textContent = src; });
+  document.querySelectorAll("[data-size=out]").forEach(el => { el.textContent = out; });
+}
+function syncAdjUi() {
+  const on = state.tab === "to-pdf" && state.images.length > 0;
+  document.documentElement.classList.toggle("folio-img-on", on);
+  const panel = document.getElementById("imgAdjust");
+  if (panel) {
+    panel.hidden = !on;
+    panel.classList.toggle("hidden", !on);
+  }
+  if (!on) return;
+  const a = currentAdj();
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  const lab = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  set("adjBright", a.brightness);
+  set("adjContrast", a.contrast);
+  set("adjSaturate", a.saturate);
+  set("adjSharp", a.sharpness);
+  lab("adjBrightVal", a.brightness + "%");
+  lab("adjContrastVal", a.contrast + "%");
+  lab("adjSaturateVal", a.saturate + "%");
+  lab("adjSharpVal", String(a.sharpness));
+  const g = document.getElementById("adjGray");
+  const bw = document.getElementById("adjBw");
+  if (g) g.checked = !!a.gray;
+  if (bw) bw.checked = !!a.bw;
+  document.querySelectorAll("#adjBg [data-bg]").forEach(btn => {
+    btn.classList.toggle("on", btn.getAttribute("data-bg") === a.bg);
+  });
+  const all = document.getElementById("adjAll");
+  if (all) all.checked = !!state.adjAll;
+}
+function itemAdj(item) {
+  return item?.adj ? item.adj : defaultAdj();
+}
+function currentAdj() {
+  return itemAdj(state.images[state.sel]);
+}
+function adjTargets() {
+  if (!state.images.length) return [];
+  if (state.adjAll) return state.images;
+  const item = state.images[state.sel];
+  return item ? [item] : [];
+}
+function writeAdj(patch) {
+  adjTargets().forEach(item => {
+    item.adj = { ...defaultAdj(), ...(item.adj || {}), ...patch };
+  });
+}
+function paintAdj(el, item) {
+  if (!el) return;
+  const a = itemAdj(item);
+  el.style.filter = adjCss(a);
+  const page = el.closest?.(".stage-page");
+  if (page) page.style.background = a.bg || "#ffffff";
+}
+function applyAdjPreview() {
+  if (state.tab !== "to-pdf") return;
+  const list = state.images;
+  stageStack.querySelectorAll(".stage-sheet").forEach((sheet, i) => {
+    const item = list[i];
+    const img = sheet.querySelector("img");
+    const page = sheet.querySelector(".stage-page");
+    if (!item || !img) return;
+    img.style.filter = adjCss(itemAdj(item));
+    if (page) page.style.background = itemAdj(item).bg || "#ffffff";
+  });
+  strip.querySelectorAll(".shot img").forEach((img, i) => {
+    const item = list[i];
+    if (item) img.style.filter = adjCss(itemAdj(item));
+  });
+}
+function commitAdj(push) {
+  if (push) pushHist();
+  state.pdfBlob = null;
+  applyAdjPreview();
+  syncSizeMeter();
+  saveMenu();
+}
+function dropCopyFor(tab) {
+  if (tab === "to-pdf") return ["Drop images to make a PDF", "PNG · JPG · WEBP"];
+  if (tab === "from-pdf") return ["Drop a PDF", "Each page becomes an image"];
+  if (tab === "merge") return ["Drop PDFs to merge", "Several files, one PDF out"];
+  if (tab === "split") return ["Drop a PDF to split", "Pick pages after it opens"];
+  if (tab === "compress") return ["Drop a PDF or photos", "Then pick quality"];
+  if (tab === "id-card") return ["Drop card photos", "Front and back on one sheet"];
+  if (tab === "text") return ["Drop a text file", "TXT · MD · CSV"];
+  return ["Drop files", "They stay on this device"];
+}
+function showDrop(on) {
+  const overlay = document.getElementById("dropOverlay");
+  const [title, sub] = dropCopyFor(state.tab);
+  const t = document.getElementById("dropTitle");
+  const s = document.getElementById("dropSub");
+  if (t) t.textContent = title;
+  if (s) s.textContent = sub;
+  document.body.classList.toggle("folio-drop", on);
+  canvas.classList.toggle("drop-on", on);
+  if (overlay) overlay.hidden = !on;
+}
+function imagesPdfName() {
+  const n = state.images.length;
+  const base = state.images[0]?.name || "images";
+  return folioDownloadName("images", base, n > 1 ? n + "p" : "", "pdf");
+}
+function primaryDownload() {
+  const map = {
+    "to-pdf": "downloadBtn",
+    "from-pdf": "downloadAllBtn",
+    merge: "mergeDlBtn",
+    split: "splitDlBtn",
+    compress: "compressDlBtn",
+    "id-card": "idPdfBtn",
+    text: "textDlBtn"
+  };
+  document.getElementById(map[state.tab])?.click();
+}
+function toggleKeys(on) {
+  const sheet = document.getElementById("keysSheet");
+  if (!sheet) return;
+  const show = on == null ? sheet.classList.contains("hidden") : on;
+  sheet.classList.toggle("hidden", !show);
+  sheet.hidden = !show;
+}
+
 function printBlob(blob) {
   return new Promise((resolve, reject) => {
     if (!blob) return reject(new Error("Nothing to print"));
@@ -332,6 +597,7 @@ function setTab(tab) {
     applyViewZoom();
     saveMenu();
     textInput?.focus();
+    syncSizeMeter();
     return;
   }
   if (tab === "id-card") {
@@ -346,6 +612,7 @@ function setTab(tab) {
     renderIdDesk();
     applyViewZoom();
     saveMenu();
+    syncSizeMeter();
     return;
   }
   const hint = TAB_META[tab]?.hint || TAB_META["to-pdf"].hint;
@@ -356,6 +623,7 @@ function setTab(tab) {
   rebuildStrip();
   renderStage();
   saveMenu();
+  syncSizeMeter();
 }
 document.querySelector(".rail-nav").addEventListener("click", e => {
   const btn = e.target.closest("button[data-tab]");
@@ -528,8 +796,6 @@ function markIdSel() {
   [...strip.querySelectorAll(".shot")].forEach((s, i) => s.classList.toggle("on", (i === 0 ? "front" : "back") === state.id.sel));
 }
 async function setIdSlot(side, file) {
-  const prev = state.id[side];
-  if (prev) URL.revokeObjectURL(prev.url);
   const url = URL.createObjectURL(file);
   const bmp = await createImageBitmap(file);
   const w = bmp.width, h = bmp.height;
@@ -540,6 +806,7 @@ async function setIdSlot(side, file) {
 async function addIdFiles(list) {
   const imgs = [...list].filter(f => f.type.startsWith("image/"));
   if (!imgs.length) return;
+  pushHist();
   idFiles.value = "";
   if (isPassport()) {
     await setIdSlot("front", imgs[0]);
@@ -661,7 +928,7 @@ async function makeIdPdfBlob() {
   }
   return {
     blob: doc.output("blob"),
-    name: mm.file + ".pdf",
+    name: folioDownloadName(mm.file, mm.file, "", "pdf"),
     label: mm.label
   };
 }
@@ -683,7 +950,7 @@ async function downloadIdPng() {
     const mm = cardMm();
     const out = await makeIdPairCanvas(220);
     const blob = await new Promise(res => out.toBlob(res, "image/png"));
-    downloadBlob(blob, mm.file + ".png");
+    downloadBlob(blob, folioDownloadName(mm.file, mm.file, "", "png"));
     setStatus(`PNG downloaded · ${mm.label} ${cardSizeText(mm)}.`);
   } catch (e) {
     setStatus("Could not create PNG: " + e.message);
@@ -736,6 +1003,7 @@ function applyShotTurn(img, item) {
 function flipOrientAt(i) {
   const item = items()[i];
   if (!item) return;
+  pushHist();
   setVisOrient(item, visOrient(item) === "landscape" ? "portrait" : "landscape");
   state.pdfBlob = null;
   const page = stageStack.querySelectorAll(".stage-page")[i];
@@ -932,6 +1200,7 @@ function makeSheet(item, i, n, L) {
   rot.onclick = e => { e.stopPropagation(); flipOrientAt(+sheet.dataset.index); };
   page.appendChild(rot);
   applyPageBox(page, L, item);
+  paintAdj(img, item);
   const tag = document.createElement("div");
   tag.className = "page-tag";
   tag.textContent = `Page ${i + 1} of ${n}`;
@@ -966,6 +1235,7 @@ function relabelSheets() {
 function renderStage() {
   if (state.tab === "id-card") {
     renderIdDesk();
+    syncSizeMeter();
     return;
   }
   if (state.tab === "text") {
@@ -974,6 +1244,7 @@ function renderStage() {
     canvas.classList.add("has-pages");
     nameBar.classList.add("hidden");
     syncTextStats();
+    syncSizeMeter();
     return;
   }
   const list = items();
@@ -998,6 +1269,8 @@ function renderStage() {
     nameBarText.textContent = "";
     document.getElementById("zoomBar")?.classList.remove("lift");
     pageWatcher?.disconnect();
+    syncSizeMeter();
+    syncAdjUi();
     return;
   }
   emptyHint.classList.add("hidden");
@@ -1012,6 +1285,7 @@ function renderStage() {
     relabelSheets();
     watchPages();
     markStrip();
+    applyAdjPreview();
     return;
   }
   const same = sheets.length === n && sheets.every((s, i) => s.querySelector("img")?.src === list[i].url);
@@ -1019,12 +1293,14 @@ function renderStage() {
     sheets.forEach((sheet, i) => applyPageBox(sheet.querySelector(".stage-page"), pageLayout(list[i]), list[i]));
     relabelSheets();
     markStrip();
+    applyAdjPreview();
     return;
   }
   stageStack.innerHTML = "";
   list.forEach((item, i) => stageStack.appendChild(makeSheet(item, i, n, pageLayout(item))));
   watchPages();
   markStrip();
+  applyAdjPreview();
 }
 
 function makeShot(item, i, selected) {
@@ -1034,6 +1310,7 @@ function makeShot(item, i, selected) {
   const nm = escapeHtml(item.name || `Page ${i + 1}`);
   el.innerHTML = `<span class="n">${i + 1}</span><button class="x" type="button" title="Remove">×</button><img src="${item.thumbUrl || item.url}" alt="" decoding="async"><span class="nm">${nm}</span>`;
   applyShotTurn(el.querySelector("img"), item);
+  paintAdj(el.querySelector("img"), item);
   el.onclick = () => {
     if (state.tab === "split") {
       item.picked = item.picked === false;
@@ -1055,6 +1332,7 @@ function markStrip() {
     nameBar.classList.remove("hidden");
     nameBarText.textContent = item.name || `Page ${i + 1}`;
     document.getElementById("zoomBar")?.classList.add("lift");
+    if (state.tab === "to-pdf") syncAdjUi();
   } else {
     nameBar.classList.add("hidden");
     nameBarText.textContent = "";
@@ -1139,6 +1417,7 @@ async function applyBestFromFile(file) {
 async function addFiles(list) {
   const added = [...list].filter(f => f.type.startsWith("image/"));
   if (!added.length) return;
+  pushHist();
   files.value = "";
   state.pdfBlob = null;
   const isFirst = state.images.length === 0;
@@ -1147,7 +1426,7 @@ async function addFiles(list) {
     try { auto = await applyBestFromFile(added[0]); }
     catch (e) { console.error(e); }
   }
-  added.forEach(file => state.images.push({ file, url: URL.createObjectURL(file), name: file.name }));
+  added.forEach(file => state.images.push({ file, url: URL.createObjectURL(file), name: file.name, adj: defaultAdj() }));
   state.sel = 0;
   rebuildStrip();
   renderStage();
@@ -1161,13 +1440,14 @@ async function addFiles(list) {
   strip.scrollLeft = 0;
   stageStack.scrollTop = 0;
   stageStack.scrollLeft = 0;
+  syncSizeMeter();
 }
 
 function removeAt(i) {
   const list = items();
   const item = list[i];
   if (!item) return;
-  dropItemUrls(item);
+  pushHist();
   list.splice(i, 1);
   setSel(Math.max(0, Math.min(sel(), list.length - 1)));
   if (!list.length && (state.tab === "split" || state.tab === "compress")) {
@@ -1179,6 +1459,7 @@ function removeAt(i) {
   rebuildStrip();
   renderStage();
   syncWorkButtons();
+  syncSizeMeter();
 }
 
 new Sortable(strip, {
@@ -1187,6 +1468,7 @@ new Sortable(strip, {
   filter: ".add-tile, .nodrag",
   onEnd: () => {
     if (!["to-pdf", "merge"].includes(state.tab)) return;
+    pushHist();
     const order = [...strip.querySelectorAll(".shot")].map(s => +s.dataset.index);
     const list = items();
     const current = list[sel()];
@@ -1297,8 +1579,10 @@ document.getElementById("idPrintBtn").onclick = async () => {
 };
 document.getElementById("idPngBtn").onclick = () => downloadIdPng();
 document.getElementById("idClearBtn").onclick = () => {
+  pushHist();
   clearIdSide("front");
   clearIdSide("back");
+  syncSizeMeter();
 };
 idDesk.querySelectorAll(".id-card").forEach(card => {
   card.addEventListener("click", () => {
@@ -1388,9 +1672,11 @@ pdfFile.addEventListener("change", e => { if (e.target.files[0]) handlePdf(e.tar
     if (e.target.id === "orientation" || e.target.id === "rotateMatch") {
       if (stageStack.querySelector(".stage-page")) staggerRotate();
       else renderStage();
+      syncSizeMeter();
       return;
     }
     renderStage();
+    syncSizeMeter();
   })
 );
 
@@ -1400,13 +1686,38 @@ canvas.addEventListener("wheel", e => {
   e.preventDefault();
   bumpViewZoom(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
 }, { passive: false });
-canvas.addEventListener("dragover", e => { e.preventDefault(); canvas.classList.add("drop-on"); });
-canvas.addEventListener("dragleave", () => canvas.classList.remove("drop-on"));
+canvas.addEventListener("dragover", e => {
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+});
+canvas.addEventListener("dragleave", () => {});
+let dragDepth = 0;
+function hasFiles(e) {
+  return e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
+}
+window.addEventListener("dragenter", e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth += 1;
+  showDrop(true);
+});
+window.addEventListener("dragleave", e => {
+  if (!hasFiles(e) && dragDepth === 0) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) showDrop(false);
+});
+canvas.addEventListener("drop", e => {
+  e.preventDefault(); e.stopPropagation();
+  dragDepth = 0;
+  showDrop(false);
+  takeDrop(e.dataTransfer.files);
+});
 function takeDrop(list) {
   if (state.tab === "text") {
     const file = [...list].find(f => (f.type && f.type.startsWith("text/")) || /\.(txt|md|csv|json)$/i.test(f.name));
     if (file && textInput) {
       file.text().then(t => {
+        pushHist();
         textInput.value = t;
         syncTextStats();
         saveTextDesk();
@@ -1427,11 +1738,6 @@ function takeDrop(list) {
     if (file) handlePdf(file);
   }
 }
-canvas.addEventListener("drop", e => {
-  e.preventDefault(); e.stopPropagation();
-  canvas.classList.remove("drop-on");
-  takeDrop(e.dataTransfer.files);
-});
 stageStack.addEventListener("wheel", e => {
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
@@ -1442,13 +1748,53 @@ stageStack.addEventListener("wheel", e => {
   e.preventDefault();
   stageStack.scrollLeft += e.deltaY + e.deltaX;
 }, { passive: false });
-window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("dragover", e => {
+  if (hasFiles(e)) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }
+});
 window.addEventListener("drop", e => {
   e.preventDefault();
+  dragDepth = 0;
+  showDrop(false);
   takeDrop(e.dataTransfer.files);
 });
 window.addEventListener("keydown", e => {
   const ctrl = e.ctrlKey || e.metaKey;
+  const inField = ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName);
+  if (ctrl && (e.key === "z" || e.key === "Z")) {
+    if (inField && state.tab === "text" && !e.shiftKey) return;
+    e.preventDefault();
+    if (e.shiftKey) redo();
+    else undo();
+    return;
+  }
+  if (ctrl && (e.key === "y" || e.key === "Y")) {
+    e.preventDefault();
+    redo();
+    return;
+  }
+  if (ctrl && (e.key === "s" || e.key === "S")) {
+    e.preventDefault();
+    primaryDownload();
+    return;
+  }
+  if (ctrl && (e.key === "o" || e.key === "O")) {
+    e.preventDefault();
+    document.getElementById("chooseBtn")?.click();
+    return;
+  }
+  if ((e.key === "?" || (e.shiftKey && e.key === "/")) && !inField) {
+    e.preventDefault();
+    toggleKeys(true);
+    return;
+  }
+  if (e.key === "Escape") {
+    toggleKeys(false);
+    showDrop(false);
+    return;
+  }
   if (ctrl && (e.key === "=" || e.key === "+" || e.key === "-")) {
     if (state.tab === "text") return;
     e.preventDefault();
@@ -1461,7 +1807,7 @@ window.addEventListener("keydown", e => {
     setViewZoom(1);
     return;
   }
-  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+  if (inField) return;
   if (state.tab === "id-card") {
     if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       state.id.sel = "back"; markIdSel();
@@ -1469,7 +1815,10 @@ window.addEventListener("keydown", e => {
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
       state.id.sel = "front"; markIdSel();
     }
-    if (e.key === "Delete") clearIdSide(state.id.sel);
+    if (e.key === "Delete" || e.key === "Backspace") {
+      pushHist();
+      clearIdSide(state.id.sel);
+    }
     return;
   }
   const list = items();
@@ -1484,7 +1833,7 @@ window.addEventListener("keydown", e => {
     markStrip();
     scrollToPage(sel());
   }
-  if (e.key === "Delete") removeAt(sel());
+  if (e.key === "Delete" || e.key === "Backspace") removeAt(sel());
   if (e.key === "r" || e.key === "R") {
     e.preventDefault();
     flipOrientAt(sel());
@@ -1500,7 +1849,7 @@ function drawFitted(ctx, bmp, dw, dh, fit) {
   ctx.drawImage(bmp, (dw - w) / 2, (dh - h) / 2, w, h);
 }
 
-async function rasterPage(file, pxW, pxH, fit, turn = 0) {
+async function rasterPage(file, pxW, pxH, fit, turn = 0, adj) {
   const bmp = await createImageBitmap(file);
   const canvasEl = document.createElement("canvas");
   canvasEl.width = pxW;
@@ -1508,7 +1857,7 @@ async function rasterPage(file, pxW, pxH, fit, turn = 0) {
   const ctx = canvasEl.getContext("2d", { alpha: false });
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "medium";
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = adj?.bg || "#fff";
   ctx.fillRect(0, 0, pxW, pxH);
   const deg = visDeg(needsRotate(bmp.width, bmp.height, pxW, pxH), extraTurn({ turn }));
   const swap = visSwap(deg);
@@ -1523,6 +1872,7 @@ async function rasterPage(file, pxW, pxH, fit, turn = 0) {
     drawFitted(ctx, bmp, pxW, pxH, fit);
   }
   ctx.restore();
+  applyAdjToCanvas(ctx, pxW, pxH, adj);
   bmp.close();
   return { canvas: canvasEl, w: pxW, h: pxH };
 }
@@ -1545,7 +1895,7 @@ async function makePdf() {
     const pxW = Math.max(1, Math.round(maxW / 25.4 * dpi));
     const pxH = Math.max(1, Math.round(maxH / 25.4 * dpi));
     setStatus(`Building PDF… ${i + 1}/${state.images.length}`);
-    const { canvas: cnv } = await rasterPage(item.file, pxW, pxH, fit, extraTurn(item));
+    const { canvas: cnv } = await rasterPage(item.file, pxW, pxH, fit, extraTurn(item), item.adj);
     const jpeg = cnv.toDataURL("image/jpeg", 0.82);
     doc.addImage(jpeg, "JPEG", margin, margin, maxW, maxH, undefined, "FAST");
     if (i % 2 === 1) await new Promise(r => requestAnimationFrame(r));
@@ -1557,8 +1907,9 @@ document.getElementById("downloadBtn").onclick = async () => {
   setBusy(true);
   try {
     if (!state.pdfBlob) state.pdfBlob = await makePdf();
-    downloadBlob(state.pdfBlob, "images.pdf");
-    setStatus("Download started.");
+    downloadBlob(state.pdfBlob, imagesPdfName());
+    setStatus("Download started · " + fmtBytes(state.pdfBlob.size));
+    syncSizeMeter();
   } catch (e) {
     setStatus("Could not create PDF: " + e.message);
   } finally { setBusy(false); }
@@ -1575,9 +1926,10 @@ document.getElementById("printBtn").onclick = async () => {
   } finally { setBusy(false); }
 };
 document.getElementById("clearBtn").onclick = () => {
-  state.images.forEach(x => URL.revokeObjectURL(x.url));
+  pushHist();
   state.images = []; state.sel = 0; state.pdfBlob = null; files.value = "";
   rebuildStrip(); renderStage(); setStatus("No pages yet.");
+  syncSizeMeter();
 };
 
 function clearExtracted() {
@@ -1659,6 +2011,7 @@ async function extractPages(pdf, scale, pageNums) {
 }
 async function handlePdf(file) {
   if (!file) return;
+  pushHist();
   state.lastPdf = file;
   clearExtracted();
   state.pdfName = (file.name || "document").replace(/\.pdf$/i, "") || "document";
@@ -1695,12 +2048,14 @@ document.getElementById("pageScale").onchange = () => {
   if (state.lastPdf && document.getElementById("extractMode").value === "pages") handlePdf(state.lastPdf);
 };
 document.getElementById("extractClearBtn").onclick = () => {
+  pushHist();
   clearExtracted(); state.lastPdf = null; rebuildStrip(); renderStage(); setStatus("Open a PDF.");
+  syncSizeMeter();
 };
 async function formattedExtracted(item) {
   const spec = imageFormatSpec();
   const blob = await rotateImageBlob(item.blob, extraTurn(item), spec, item.w, item.h);
-  return { blob, name: renameExt(item.name, spec.ext) };
+  return { blob, name: folioDownloadName("page", item.name, "", spec.ext) };
 }
 document.getElementById("downloadThisBtn").onclick = async () => {
   const item = state.extracted[state.extSel] || state.extracted[0];
@@ -1745,7 +2100,7 @@ document.getElementById("downloadAllBtn").onclick = async () => {
     const out = await formattedExtracted(item);
     zip.file(out.name, out.blob);
   }
-  downloadBlob(await zip.generateAsync({ type: "blob" }), state.pdfName + "-images.zip");
+  downloadBlob(await zip.generateAsync({ type: "blob" }), folioDownloadName("pages", state.pdfName, "images", "zip"));
   setStatus("ZIP download started.");
 };
 document.getElementById("printExtractBtn").onclick = async () => {
@@ -1765,16 +2120,10 @@ document.getElementById("printExtractBtn").onclick = async () => {
     setStatus("Could not print: " + e.message);
   }
 };
-window.addEventListener("keydown", e => {
-  if (e.key === "s" && (e.ctrlKey || e.metaKey) && state.tab === "from-pdf" && state.extracted[state.extSel]) {
-    e.preventDefault();
-    formattedExtracted(state.extracted[state.extSel]).then(out => downloadBlob(out.blob, out.name));
-  }
-});
 document.getElementById("pageRange")?.addEventListener("change", () => {
   if (state.lastPdf) handlePdf(state.lastPdf);
 });
-document.getElementById("imgFormat")?.addEventListener("change", saveMenu);
+document.getElementById("imgFormat")?.addEventListener("change", () => { saveMenu(); syncSizeMeter(); });
 
 function needPdfLib() {
   if (PDFLib?.PDFDocument) return true;
@@ -1793,14 +2142,13 @@ function syncWorkButtons() {
   setDis("splitPrintBtn", splitN === 0 || !state.workBytes);
   setDis("compressDlBtn", workN === 0);
   setDis("compressPrintBtn", workN === 0);
+  syncSizeMeter();
 }
 function clearMerge() {
-  state.mergeDocs.forEach(dropItemUrls);
   state.mergeDocs = [];
   state.mergeSel = 0;
 }
 function clearWork() {
-  state.workPages.forEach(dropItemUrls);
   state.workPages = [];
   state.workSel = 0;
   state.workBytes = null;
@@ -1905,6 +2253,7 @@ async function sharpenOne(i) {
 async function addMergeFiles(list) {
   const pdfs = [...list].filter(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
   if (!pdfs.length) return;
+  pushHist();
   document.getElementById("mergeFiles").value = "";
   setBusy(true);
   try {
@@ -1932,6 +2281,7 @@ async function addMergeFiles(list) {
     strip.scrollLeft = 0;
     stageStack.scrollTop = 0;
     stageStack.scrollLeft = 0;
+    syncSizeMeter();
   } catch (e) {
     setStatus("Could not add PDF: " + e.message);
   }
@@ -1939,6 +2289,7 @@ async function addMergeFiles(list) {
 }
 async function loadWorkPdf(file, kind) {
   if (!file) return;
+  pushHist();
   document.getElementById("workPdfFile").value = "";
   document.getElementById("compressFiles").value = "";
   setBusy(true);
@@ -1984,6 +2335,7 @@ async function addCompressFiles(list) {
     return;
   }
   if (!images.length) return;
+  pushHist();
   setBusy(true);
   try {
     clearWork();
@@ -2055,7 +2407,7 @@ async function downloadMerged() {
   try {
     const blob = await buildMergedBlob();
     if (!blob) return;
-    downloadBlob(blob, "merged.pdf");
+    downloadBlob(blob, folioDownloadName("merged", state.mergeDocs[0]?.name || "merged", state.mergeDocs.length + "files", "pdf"));
     setStatus("Merged PDF downloaded.");
   } catch (e) {
     setStatus("Could not merge: " + e.message);
@@ -2092,7 +2444,7 @@ async function downloadSplitPdf() {
   try {
     const out = await buildSplitBlob();
     if (!out) return;
-    downloadBlob(out.blob, `${state.workName}-split.pdf`);
+    downloadBlob(out.blob, folioDownloadName("split", state.workName, "p" + out.nums[0] + (out.nums.length > 1 ? "-" + out.nums[out.nums.length - 1] : ""), "pdf"));
     setStatus(`Split PDF downloaded · ${out.nums.length} page${out.nums.length === 1 ? "" : "s"}.`);
   } catch (e) {
     setStatus("Could not split: " + e.message);
@@ -2125,7 +2477,7 @@ async function downloadSplitZip() {
       dest.addPage(page);
       zip.file(`${state.workName}-p${String(n).padStart(2, "0")}.pdf`, await dest.save());
     }
-    downloadBlob(await zip.generateAsync({ type: "blob" }), `${state.workName}-pages.zip`);
+    downloadBlob(await zip.generateAsync({ type: "blob" }), folioDownloadName("pages", state.workName, "pages", "zip"));
     setStatus("Each-page ZIP downloaded.");
   } catch (e) {
     setStatus("Could not split: " + e.message);
@@ -2193,7 +2545,7 @@ async function downloadCompressed() {
     if (state.workBytes) {
       if (needPdfLib()) {
         const blob = await compressPdfPages();
-        downloadBlob(blob, `${state.workName}-small.pdf`);
+        downloadBlob(blob, folioDownloadName("compress", state.workName, "small", "pdf"));
         setStatus("Compressed PDF downloaded.");
       }
     } else {
@@ -2213,7 +2565,7 @@ async function downloadCompressed() {
       } else {
         const zip = new JSZip();
         files.forEach(f => zip.file(f.name, f.blob));
-        downloadBlob(await zip.generateAsync({ type: "blob" }), "images-small.zip");
+        downloadBlob(await zip.generateAsync({ type: "blob" }), folioDownloadName("images", "images", "small", "zip"));
         setStatus("Compressed images ZIP downloaded.");
       }
       files.forEach(f => URL.revokeObjectURL(f.url));
@@ -2264,23 +2616,29 @@ document.getElementById("mergeOpenBtn").onclick = () => document.getElementById(
 document.getElementById("mergeDlBtn").onclick = () => downloadMerged();
 document.getElementById("mergePrintBtn").onclick = () => printMerged();
 document.getElementById("mergeClearBtn").onclick = () => {
+  pushHist();
   clearMerge(); rebuildStrip(); renderStage(); setStatus("Drop several PDFs to merge.");
+  syncSizeMeter();
 };
 document.getElementById("splitOpenBtn").onclick = () => document.getElementById("workPdfFile").click();
 document.getElementById("splitDlBtn").onclick = () => downloadSplitPdf();
 document.getElementById("splitPrintBtn").onclick = () => printSplitPdf();
 document.getElementById("splitEachBtn").onclick = () => downloadSplitZip();
 document.getElementById("splitClearBtn").onclick = () => {
+  pushHist();
   clearWork(); rebuildStrip(); renderStage(); setStatus("Open a PDF to split.");
+  syncSizeMeter();
 };
 document.getElementById("splitRange")?.addEventListener("change", applySplitRange);
 document.getElementById("compressOpenBtn").onclick = () => document.getElementById("compressFiles").click();
 document.getElementById("compressDlBtn").onclick = () => downloadCompressed();
 document.getElementById("compressPrintBtn").onclick = () => printCompressed();
 document.getElementById("compressClearBtn").onclick = () => {
+  pushHist();
   clearWork(); rebuildStrip(); renderStage(); setStatus("Open a PDF or photos.");
+  syncSizeMeter();
 };
-document.getElementById("compressQuality")?.addEventListener("change", saveMenu);
+document.getElementById("compressQuality")?.addEventListener("change", () => { saveMenu(); syncSizeMeter(); });
 
 function syncTextStats() {
   if (!textInput) return;
@@ -2301,6 +2659,7 @@ function loadTextDesk() {
 document.getElementById("sideText")?.addEventListener("click", e => {
   const btn = e.target.closest("[data-text-op]");
   if (!btn || !textInput) return;
+  pushHist();
   const start = textInput.selectionStart;
   const end = textInput.selectionEnd;
   const hasSel = start !== end;
@@ -2315,7 +2674,7 @@ document.getElementById("sideText")?.addEventListener("click", e => {
   syncTextStats();
   saveTextDesk();
 });
-textInput?.addEventListener("input", () => { syncTextStats(); saveTextDesk(); });
+textInput?.addEventListener("input", () => { syncTextStats(); saveTextDesk(); syncSizeMeter(); });
 document.getElementById("textCopyBtn")?.addEventListener("click", async () => {
   const t = textInput?.value || "";
   try {
@@ -2329,7 +2688,7 @@ document.getElementById("textCopyBtn")?.addEventListener("click", async () => {
 });
 document.getElementById("textDlBtn")?.addEventListener("click", () => {
   const t = textInput?.value || "";
-  downloadBlob(new Blob([t], { type: "text/plain;charset=utf-8" }), "text.txt");
+  downloadBlob(new Blob([t], { type: "text/plain;charset=utf-8" }), folioDownloadName("text", t.trim().split(/\s+/).slice(0, 4).join(" ") || "notes", "", "txt"));
   setStatus("Text downloaded.");
 });
 document.getElementById("textPrintBtn")?.addEventListener("click", () => {
@@ -2339,21 +2698,92 @@ document.getElementById("textPrintBtn")?.addEventListener("click", () => {
   setStatus("Print dialog opened.");
 });
 document.getElementById("textClearBtn")?.addEventListener("click", () => {
+  pushHist();
   if (textInput) textInput.value = "";
   syncTextStats();
   saveTextDesk();
   setStatus("Text cleared.");
+  syncSizeMeter();
 });
 loadTextDesk();
 
 document.getElementById("zoomOut").onclick = () => bumpViewZoom(-ZOOM_STEP);
 document.getElementById("zoomIn").onclick = () => bumpViewZoom(ZOOM_STEP);
 document.getElementById("zoomVal").onclick = () => setViewZoom(1);
+document.getElementById("undoBtn")?.addEventListener("click", undo);
+document.getElementById("redoBtn")?.addEventListener("click", redo);
+
+(function setupAdj() {
+  const bind = (id, key, fmt) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("pointerdown", () => pushHist());
+    el.addEventListener("input", () => {
+      writeAdj({ [key]: Number(el.value) });
+      const lab = document.getElementById(id + "Val");
+      if (lab) lab.textContent = fmt(Number(el.value));
+      state.pdfBlob = null;
+      applyAdjPreview();
+      syncSizeMeter();
+    });
+    el.addEventListener("change", () => saveMenu());
+  };
+  bind("adjBright", "brightness", v => v + "%");
+  bind("adjContrast", "contrast", v => v + "%");
+  bind("adjSaturate", "saturate", v => v + "%");
+  bind("adjSharp", "sharpness", v => String(v));
+  document.getElementById("adjGray")?.addEventListener("change", e => {
+    pushHist();
+    writeAdj({ gray: e.target.checked, bw: e.target.checked ? false : currentAdj().bw });
+    syncAdjUi();
+    commitAdj(false);
+  });
+  document.getElementById("adjBw")?.addEventListener("change", e => {
+    pushHist();
+    writeAdj({ bw: e.target.checked, gray: e.target.checked ? false : currentAdj().gray });
+    syncAdjUi();
+    commitAdj(false);
+  });
+  document.getElementById("adjBg")?.addEventListener("click", e => {
+    const btn = e.target.closest("[data-bg]");
+    if (!btn) return;
+    pushHist();
+    writeAdj({ bg: btn.getAttribute("data-bg") });
+    syncAdjUi();
+    commitAdj(false);
+  });
+  document.getElementById("adjReset")?.addEventListener("click", () => {
+    pushHist();
+    writeAdj(defaultAdj());
+    syncAdjUi();
+    commitAdj(false);
+  });
+  document.getElementById("adjAll")?.addEventListener("change", e => {
+    pushHist();
+    state.adjAll = e.target.checked;
+    if (state.adjAll && state.images[state.sel]) {
+      const look = cloneAdj(itemAdj(state.images[state.sel]));
+      state.images.forEach(it => { it.adj = cloneAdj(look); });
+      state.pdfBlob = null;
+      applyAdjPreview();
+    }
+    saveMenu();
+    syncAdjUi();
+  });
+})();
+
+document.getElementById("keysSheet")?.addEventListener("click", e => {
+  if (e.target.id === "keysSheet" || e.target.closest("[data-close]")) toggleKeys(false);
+});
 
 restoreMenu();
+syncAdjUi();
+applyAdjPreview();
 applyViewZoom();
 syncRotateField();
 syncIdSheet();
+syncSizeMeter();
+pushHist();
 (function bootTab() {
   const s = readStore();
   const ok = ["to-pdf", "from-pdf", "id-card", "merge", "split", "compress", "text"];

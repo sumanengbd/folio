@@ -35,7 +35,7 @@
     if (ctrl && e.shiftKey && (k === "i" || k === "j" || k === "c" || k === "k" || k === "e")) return true;
     if (ctrl && e.shiftKey && (code === "KeyI" || code === "KeyJ" || code === "KeyC" || code === "KeyK" || code === "KeyE")) return true;
     if (e.metaKey && e.altKey && (k === "i" || k === "j" || k === "c")) return true;
-    if (ctrl && (k === "u" || k === "s" || code === "KeyU" || code === "KeyS")) return true;
+    if (ctrl && (k === "u" || code === "KeyU")) return true;
     return false;
   }
 

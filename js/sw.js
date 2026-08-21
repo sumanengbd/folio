@@ -1,4 +1,4 @@
-const VERSION = "1.0.2";
+const VERSION = "1.0.12";
 const CACHE = "folio-v" + VERSION;
 const SHELL = [
   "./index.html",

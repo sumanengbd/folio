@@ -123,6 +123,127 @@ export function applyTextOp(op, s) {
   return t;
 }
 
+export function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n <= 0) return "—";
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB";
+  return (n / 1048576).toFixed(n < 10485760 ? 2 : 1) + " MB";
+}
+
+export function fileStamp() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+export function safeFilePart(s, fallback = "folio") {
+  const t = String(s || "")
+    .replace(/\.[a-z0-9]{1,5}$/i, "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+  return t || fallback;
+}
+
+export function folioDownloadName(kind, base, extra, ext) {
+  const name = safeFilePart(base, kind || "folio");
+  const bit = extra ? "-" + safeFilePart(extra, "file") : "";
+  return `${name}${bit}-${fileStamp()}.${ext || "pdf"}`;
+}
+
+export function defaultAdj() {
+  return { brightness: 100, contrast: 100, saturate: 100, sharpness: 0, gray: false, bw: false, bg: "#ffffff" };
+}
+
+export function adjCss(adj) {
+  const a = adj || defaultAdj();
+  const gray = a.gray || a.bw;
+  const parts = [
+    `brightness(${(Number(a.brightness) || 100) / 100})`,
+    `contrast(${((Number(a.contrast) || 100) / 100) * (a.bw ? 1.8 : 1) * (1 + (Number(a.sharpness) || 0) / 280)})`,
+    `saturate(${gray ? 0 : (Number(a.saturate) || 100) / 100})`,
+    gray ? "grayscale(1)" : ""
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
+function clampByte(n) {
+  return n < 0 ? 0 : n > 255 ? 255 : n;
+}
+
+export function adjustPixels(data, adj) {
+  const a = adj || defaultAdj();
+  const bAdd = ((Number(a.brightness) || 100) - 100) * 2.55;
+  const c = (Number(a.contrast) || 100) / 100;
+  const s = a.gray || a.bw ? 0 : (Number(a.saturate) || 100) / 100;
+  const intercept = 128 * (1 - c);
+  const bw = !!a.bw;
+  const gray = !!a.gray || bw;
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i] + bAdd;
+    let g = data[i + 1] + bAdd;
+    let b = data[i + 2] + bAdd;
+    r = r * c + intercept;
+    g = g * c + intercept;
+    b = b * c + intercept;
+    const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    r = l + (r - l) * s;
+    g = l + (g - l) * s;
+    b = l + (b - l) * s;
+    if (gray) r = g = b = l;
+    if (bw) r = g = b = l > 140 ? 255 : 0;
+    data[i] = clampByte(r);
+    data[i + 1] = clampByte(g);
+    data[i + 2] = clampByte(b);
+  }
+}
+
+export function sharpenImageData(imageData, amount) {
+  const mix = Math.min(1, Math.max(0, Number(amount) || 0) / 100) * 0.7;
+  if (mix < 0.02) return;
+  const w = imageData.width;
+  const h = imageData.height;
+  const src = imageData.data;
+  const copy = new Uint8ClampedArray(src);
+  const k = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      for (let c = 0; c < 3; c++) {
+        let v = 0;
+        let i = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            v += copy[((y + ky) * w + (x + kx)) * 4 + c] * k[i++];
+          }
+        }
+        const idx = (y * w + x) * 4 + c;
+        src[idx] = clampByte(src[idx] * (1 - mix) + v * mix);
+      }
+    }
+  }
+}
+
+export function applyAdjToCanvas(ctx, w, h, adj) {
+  const a = adj || defaultAdj();
+  const changed = a.brightness !== 100 || a.contrast !== 100 || a.saturate !== 100 || a.sharpness > 0 || a.gray || a.bw;
+  if (!changed) return;
+  const img = ctx.getImageData(0, 0, w, h);
+  adjustPixels(img.data, a);
+  sharpenImageData(img, a.sharpness);
+  ctx.putImageData(img, 0, 0);
+}
+
+export function estimateJpegPdfBytes(pages, mmW, mmH, dpi, quality) {
+  const n = Math.max(0, pages | 0);
+  if (!n) return 0;
+  const px = Math.max(1, (mmW / 25.4) * dpi) * Math.max(1, (mmH / 25.4) * dpi);
+  const q = quality == null ? 0.82 : quality;
+  return Math.round(n * px * (0.055 + q * 0.09) + 2800 + n * 900);
+}
+
 export async function rotateImageBlob(blob, turn, spec, w, h) {
   const t = (((turn || 0) % 360) + 360) % 360;
   if (!t) return blobToFormat(blob, spec, w, h);

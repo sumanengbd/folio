@@ -26,6 +26,12 @@
   }
   window.folioReadStore = readStore;
   window.folioBoot = function () {
+    document.documentElement.classList.remove("folio-img-on");
+    var adj = document.getElementById("imgAdjust");
+    if (adj) {
+      adj.hidden = true;
+      adj.classList.add("hidden");
+    }
     var s = readStore();
     var html = document.documentElement;
     var railOn = s.rail === true || localStorage.getItem("folio-rail") === "1";
