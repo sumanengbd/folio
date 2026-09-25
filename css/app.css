@@ -43,7 +43,7 @@
   --type-btn: 14px;
   --type-hint: 22px;
   --rail-w: 232px;
-  --side-w: 300px;
+  --side-w: 332px;
   --strip-h: 120px;
   --stage-max: 480px;
   --stage-spread: 720px;
@@ -347,6 +347,7 @@ html.folio-ready .shell {
 #tabFromPdf .rail-ico { background: #e0f2fe; color: #0284c7; }
 #tabMerge .rail-ico { background: #f3e8ff; color: #7c3aed; }
 #tabSplit .rail-ico { background: #fef3c7; color: #d97706; }
+#tabOrganize .rail-ico { background: #fce7f3; color: #db2777; }
 #tabCompress .rail-ico { background: #ffe4e6; color: #e11d48; }
 #tabText .rail-ico { background: #d1fae5; color: #059669; }
 #tabIdCard .rail-ico { background: #ccfbf1; color: #0f766e; }
@@ -357,6 +358,7 @@ html[data-tab="from-pdf"] #tabFromPdf,
 html[data-tab="id-card"] #tabIdCard,
 html[data-tab="merge"] #tabMerge,
 html[data-tab="split"] #tabSplit,
+html[data-tab="organize"] #tabOrganize,
 html[data-tab="compress"] #tabCompress,
 html[data-tab="text"] #tabText {
   background: var(--rail-on);
@@ -372,6 +374,7 @@ html[data-tab="from-pdf"] #tabFromPdf .rail-ico,
 html[data-tab="id-card"] #tabIdCard .rail-ico,
 html[data-tab="merge"] #tabMerge .rail-ico,
 html[data-tab="split"] #tabSplit .rail-ico,
+html[data-tab="organize"] #tabOrganize .rail-ico,
 html[data-tab="compress"] #tabCompress .rail-ico,
 html[data-tab="text"] #tabText .rail-ico {
   background: #fff;
@@ -506,6 +509,7 @@ html:not([data-tab="from-pdf"]) #sideFromPdf,
 html:not([data-tab="id-card"]) #sideIdCard,
 html:not([data-tab="merge"]) #sideMerge,
 html:not([data-tab="split"]) #sideSplit,
+html:not([data-tab="organize"]) #sideOrganize,
 html:not([data-tab="compress"]) #sideCompress,
 html:not([data-tab="text"]) #sideText,
 html:not([data-tab="id-card"]) #idDesk,
@@ -516,7 +520,7 @@ html[data-tab="id-card"] #stageStack,
 html[data-tab="text"] #stageStack,
 html[data-tab="id-card"] #nameBar,
 html[data-tab="text"] #nameBar,
-html:not([data-tab="to-pdf"]):not([data-tab="merge"]) #addTile {
+html:not([data-tab="to-pdf"]):not([data-tab="merge"]):not([data-tab="organize"]) #addTile {
   display: none !important;
 }
 html[data-tab="id-card"] #idDesk,
@@ -524,6 +528,7 @@ html[data-tab="text"] #textDesk { display: flex !important; }
 html[data-tab="from-pdf"] #canvas.has-pages,
 html[data-tab="merge"] #canvas.has-pages,
 html[data-tab="split"] #canvas.has-pages,
+html[data-tab="organize"] #canvas.has-pages,
 html[data-tab="compress"] #canvas.has-pages,
 html[data-tab="text"] #canvas.has-pages,
 html[data-tab="id-card"] #canvas {
@@ -1118,7 +1123,8 @@ html.folio-img-on #imgAdjust { display: block !important; }
 .field-row.portrait-only .field-rotate { display: none; }
 .field-row .field.span-12 { grid-column: span 12; }
 .side select,
-.side input[type=text] {
+.side input[type=text],
+.side input[type=number] {
   appearance: none;
   -webkit-appearance: none;
   margin: 0;
@@ -1135,9 +1141,11 @@ html.folio-img-on #imgAdjust { display: block !important; }
   padding: 0 14px;
 }
 .side select:hover,
-.side input[type=text]:hover { background: var(--control-hover); }
+.side input[type=text]:hover,
+.side input[type=number]:hover { background: var(--control-hover); }
 .side select:focus,
-.side input[type=text]:focus {
+.side input[type=text]:focus,
+.side input[type=number]:focus {
   outline: none;
   background: #fff;
   box-shadow: var(--ring);
@@ -1486,6 +1494,8 @@ html.no-inspect .shell { filter: blur(12px); pointer-events: none; }
 }
 #sideText { padding: var(--side-pad); }
 #sideText .btn { margin-top: 0; }
+#sideText .field-row { margin-bottom: 10px; }
+#sideText #loremBtn { width: 100%; }
 #sideText .text-ops {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1622,7 +1632,7 @@ input[type=file] { display: none; }
     --radius: 24px;
     --logo: 42px;
     --rail-w: 240px;
-    --side-w: 320px;
+    --side-w: 348px;
     --strip-h: 128px;
     --shot-w: 84px;
     --shot-h: 104px;
@@ -1634,7 +1644,7 @@ input[type=file] { display: none; }
   :root {
     --pad: 18px;
     --rail-w: 256px;
-    --side-w: 340px;
+    --side-w: 368px;
     --strip-h: 136px;
     --side-pad: 20px;
     --stage-max: 640px;
@@ -1643,7 +1653,7 @@ input[type=file] { display: none; }
 }
 @media (min-width: 2200px) {
   :root {
-    --side-w: 360px;
+    --side-w: 388px;
     --stage-max: 720px;
     --stage-spread: 980px;
   }
@@ -1655,7 +1665,7 @@ input[type=file] { display: none; }
     --radius: 20px;
     --logo: 38px;
     --rail-w: 220px;
-    --side-w: 280px;
+    --side-w: 308px;
     --strip-h: 116px;
     --side-pad: 16px;
     --ctrl-h: 44px;
@@ -1677,7 +1687,7 @@ input[type=file] { display: none; }
     --rail-pad: 10px;
     --rail-gap: 10px;
     --rail-btn-h: 40px;
-    --side-w: clamp(216px, 26vw, 276px);
+    --side-w: clamp(240px, 28vw, 304px);
     --side-pad: 14px;
     --strip-h: 108px;
     --strip-pad: 10px;

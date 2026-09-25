@@ -1,5 +1,5 @@
 import * as pdfjsLib from "./vendor/pdf.min.mjs";
-import { parsePageRange, imageFormatSpec, renameExt, compressPreset, applyTextOp, textStats, rotateImageBlob, fmtBytes, folioDownloadName, defaultAdj, adjCss, applyAdjToCanvas, estimateJpegPdfBytes } from "./folio-extra.js?v=2";
+import { parsePageRange, imageFormatSpec, renameExt, compressPreset, applyTextOp, generateLorem, textStats, rotateImageBlob, fmtBytes, folioDownloadName, defaultAdj, adjCss, applyAdjToCanvas, estimateJpegPdfBytes } from "./folio-extra.js?v=4";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdf.worker.min.mjs", import.meta.url).href;
 
 const { jsPDF } = window.jspdf;
@@ -78,6 +78,11 @@ function saveMenu() {
     idPlace: document.getElementById("idPlace").value,
     imgFormat: document.getElementById("imgFormat")?.value,
     compressQuality: document.getElementById("compressQuality")?.value,
+    loremKind: document.getElementById("loremKind")?.value,
+    loremCount: document.getElementById("loremCount")?.value,
+    loremWords: document.getElementById("loremWords")?.value,
+    loremChars: document.getElementById("loremChars")?.value,
+    loremClassic: document.getElementById("loremClassic")?.checked,
     viewZoom: state.viewZoom,
     adjAll: !!state.adjAll
   });
@@ -101,6 +106,15 @@ function restoreMenu() {
   restoreSelect("idPlace", s.idPlace);
   restoreSelect("imgFormat", s.imgFormat);
   restoreSelect("compressQuality", s.compressQuality);
+  restoreSelect("loremKind", s.loremKind);
+  restoreSelect("loremCount", s.loremCount);
+  if (s.loremWords != null && document.getElementById("loremWords")) document.getElementById("loremWords").value = s.loremWords;
+  if (s.loremChars != null && document.getElementById("loremChars")) document.getElementById("loremChars").value = s.loremChars;
+  if (typeof s.loremClassic === "boolean") {
+    const lc = document.getElementById("loremClassic");
+    if (lc) lc.checked = s.loremClassic;
+  }
+  syncLoremLabels();
   if (typeof s.rotateMatch === "boolean") document.getElementById("rotateMatch").checked = s.rotateMatch;
   if (s.idSel === "front" || s.idSel === "back") {
     state.id.sel = s.idSel;
@@ -211,6 +225,7 @@ function setStatus(msg) {
     "id-card": "idStatus",
     merge: "mergeNote",
     split: "splitNote",
+    organize: "orgNote",
     compress: "compressNote",
     text: "textNote"
   };
@@ -341,9 +356,16 @@ function sourceBytes() {
   if (state.tab === "to-pdf") return state.images.reduce((n, i) => n + (i.file?.size || 0), 0);
   if (state.tab === "from-pdf") return state.lastPdf?.size || 0;
   if (state.tab === "merge") return state.mergeDocs.reduce((n, d) => n + (d.bytes?.byteLength || d.file?.size || 0), 0);
-  if (state.tab === "split" || state.tab === "compress") {
-    if (state.workBytes) return state.workBytes.byteLength;
-    return state.workPages.reduce((n, p) => n + (p.file?.size || p.blob?.size || 0), 0);
+  if (state.tab === "split" || state.tab === "compress" || state.tab === "organize") {
+    const seen = new Set();
+    let n = 0;
+    if (state.workBytes) { seen.add(state.workBytes); n += state.workBytes.byteLength; }
+    state.workPages.forEach(p => {
+      const b = p.bytes;
+      if (b && !seen.has(b)) { seen.add(b); n += b.byteLength; }
+      else if (!b) n += p.file?.size || p.blob?.size || 0;
+    });
+    return n;
   }
   if (state.tab === "id-card") return (state.id.front?.file?.size || 0) + (state.id.back?.file?.size || 0);
   if (state.tab === "text") return new Blob([textInput?.value || ""]).size;
@@ -376,6 +398,7 @@ function estimateOutBytes() {
     const total = state.workPages.length || 1;
     return Math.round(sourceBytes() * (nums.length / total));
   }
+  if (state.tab === "organize") return state.workPages.length ? Math.round(sourceBytes() * 1.01) : 0;
   if (state.tab === "compress") {
     const q = document.getElementById("compressQuality")?.value;
     const f = q === "low" ? 0.38 : q === "high" ? 0.78 : 0.55;
@@ -476,6 +499,7 @@ function dropCopyFor(tab) {
   if (tab === "from-pdf") return ["Drop a PDF", "Each page becomes an image"];
   if (tab === "merge") return ["Drop PDFs to merge", "Several files, one PDF out"];
   if (tab === "split") return ["Drop a PDF to split", "Pick pages after it opens"];
+  if (tab === "organize") return ["Drop a PDF to organize", "Sort, add, or delete pages"];
   if (tab === "compress") return ["Drop a PDF or photos", "Then pick quality"];
   if (tab === "id-card") return ["Drop card photos", "Front and back on one sheet"];
   if (tab === "text") return ["Drop a text file", "TXT · MD · CSV"];
@@ -503,6 +527,7 @@ function primaryDownload() {
     "from-pdf": "downloadAllBtn",
     merge: "mergeDlBtn",
     split: "splitDlBtn",
+    organize: "orgDlBtn",
     compress: "compressDlBtn",
     "id-card": "idPdfBtn",
     text: "textDlBtn"
@@ -569,8 +594,9 @@ const TAB_META = {
   "from-pdf": { side: "sideFromPdf", tab: "tabFromPdf", hint: ["Drop a PDF onto the desk", "Each page becomes an image. Scroll the middle to see every page in order.", "Open PDF"] },
   merge: { side: "sideMerge", tab: "tabMerge", hint: ["Drop PDFs to merge", "Add several files, then drag the strip to set order.", "Add PDFs"] },
   split: { side: "sideSplit", tab: "tabSplit", hint: ["Drop a PDF to split", "Type a range or click thumbs to pick pages.", "Open PDF"] },
+  organize: { side: "sideOrganize", tab: "tabOrganize", hint: ["Drop a PDF to organize", "Drag the strip to sort pages. Add or delete pages, then download.", "Open PDF"] },
   compress: { side: "sideCompress", tab: "tabCompress", hint: ["Drop a PDF or images", "Choose quality, then download a smaller file.", "Open files"] },
-  text: { side: "sideText", tab: "tabText", hint: ["Type or paste text", "Change case, copy, download, or print. Nothing is uploaded.", "Open files"] },
+  text: { side: "sideText", tab: "tabText", hint: ["Type or paste text", "Generate Lorem Ipsum, change case, copy, or download. Nothing is uploaded.", "Open files"] },
   "id-card": { side: "sideIdCard", tab: "tabIdCard", hint: ["Drop card photos", "Front on top, back below.", "Open photo"] }
 };
 
@@ -619,7 +645,7 @@ function setTab(tab) {
   document.getElementById("hintTitle").textContent = hint[0];
   document.getElementById("hintText").textContent = hint[1];
   document.getElementById("chooseBtn").textContent = hint[2];
-  addTile.style.display = tab === "to-pdf" || tab === "merge" ? "" : "none";
+  addTile.style.display = tab === "to-pdf" || tab === "merge" || tab === "organize" ? "" : "none";
   rebuildStrip();
   renderStage();
   saveMenu();
@@ -702,7 +728,7 @@ function items() {
   if (state.tab === "to-pdf") return state.images;
   if (state.tab === "from-pdf") return state.extracted;
   if (state.tab === "merge") return state.mergeDocs;
-  if (state.tab === "split" || state.tab === "compress") return state.workPages;
+  if (state.tab === "split" || state.tab === "compress" || state.tab === "organize") return state.workPages;
   return [];
 }
 function sel() {
@@ -1376,7 +1402,7 @@ function rebuildStrip() {
   [...strip.querySelectorAll(".shot")].forEach(s => s.remove());
   const list = items();
   list.forEach((item, i) => strip.appendChild(makeShot(item, i, i === sel())));
-  if (state.tab === "to-pdf" || state.tab === "merge") strip.appendChild(addTile);
+  if (state.tab === "to-pdf" || state.tab === "merge" || state.tab === "organize") strip.appendChild(addTile);
 }
 
 function chooseLayout(w, h) {
@@ -1450,7 +1476,7 @@ function removeAt(i) {
   pushHist();
   list.splice(i, 1);
   setSel(Math.max(0, Math.min(sel(), list.length - 1)));
-  if (!list.length && (state.tab === "split" || state.tab === "compress")) {
+  if (!list.length && (state.tab === "split" || state.tab === "compress" || state.tab === "organize")) {
     state.workBytes = null;
     state.workPdf = null;
     state.workKind = "";
@@ -1467,7 +1493,7 @@ new Sortable(strip, {
   draggable: ".shot",
   filter: ".add-tile, .nodrag",
   onEnd: () => {
-    if (!["to-pdf", "merge"].includes(state.tab)) return;
+    if (!["to-pdf", "merge", "organize"].includes(state.tab)) return;
     pushHist();
     const order = [...strip.querySelectorAll(".shot")].map(s => +s.dataset.index);
     const list = items();
@@ -1475,6 +1501,7 @@ new Sortable(strip, {
     const next = order.map(i => list[i]);
     if (state.tab === "to-pdf") { state.images = next; state.sel = Math.max(0, state.images.indexOf(current)); state.pdfBlob = null; }
     else if (state.tab === "merge") { state.mergeDocs = next; state.mergeSel = Math.max(0, state.mergeDocs.indexOf(current)); }
+    else if (state.tab === "organize") { state.workPages = next; state.workSel = Math.max(0, state.workPages.indexOf(current)); }
     rebuildStrip();
     renderStage();
   }
@@ -1485,7 +1512,7 @@ document.getElementById("chooseBtn").onclick = () => {
   else if (state.tab === "id-card") idFiles.click();
   else if (state.tab === "merge") document.getElementById("mergeFiles").click();
   else if (state.tab === "compress") document.getElementById("compressFiles").click();
-  else if (state.tab === "split") document.getElementById("workPdfFile").click();
+  else if (state.tab === "split" || state.tab === "organize") document.getElementById("workPdfFile").click();
   else pdfFile.click();
 };
 emptyHint?.addEventListener("click", e => {
@@ -1494,6 +1521,7 @@ emptyHint?.addEventListener("click", e => {
 });
 addTile.onclick = () => {
   if (state.tab === "merge") document.getElementById("mergeFiles").click();
+  else if (state.tab === "organize") document.getElementById("orgAddFiles").click();
   else files.click();
 };
 files.addEventListener("change", e => addFiles(e.target.files));
@@ -1733,6 +1761,8 @@ function takeDrop(list) {
   else if (state.tab === "split") {
     const file = [...list].find(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
     if (file) loadWorkPdf(file, state.tab);
+  } else if (state.tab === "organize") {
+    addOrganizePdfs(list);
   } else {
     const file = [...list].find(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
     if (file) handlePdf(file);
@@ -2140,6 +2170,12 @@ function syncWorkButtons() {
   setDis("splitDlBtn", splitN === 0 || !state.workBytes);
   setDis("splitEachBtn", splitN === 0 || !state.workBytes);
   setDis("splitPrintBtn", splitN === 0 || !state.workBytes);
+  const orgN = state.tab === "organize" ? workN : state.workPages.length;
+  const orgReady = orgN === 0;
+  setDis("orgDlBtn", orgReady);
+  setDis("orgPrintBtn", orgReady);
+  setDis("orgDelBtn", orgReady);
+  setDis("orgAddBtn", false);
   setDis("compressDlBtn", workN === 0);
   setDis("compressPrintBtn", workN === 0);
   syncSizeMeter();
@@ -2189,6 +2225,10 @@ async function pdfDocFor(item) {
     if (!item.pdfPromise) item.pdfPromise = pdfjsLib.getDocument({ data: item.bytes.slice(0) }).promise;
     return item.pdfPromise;
   }
+  if (item?.bytes && item.bytes !== state.workBytes) {
+    if (!item.pdfPromise) item.pdfPromise = pdfjsLib.getDocument({ data: item.bytes.slice(0) }).promise;
+    return item.pdfPromise;
+  }
   if (state.workPdf) return state.workPdf;
   if (state.workBytes) {
     state.workPdf = await pdfjsLib.getDocument({ data: state.workBytes.slice(0) }).promise;
@@ -2201,12 +2241,12 @@ let sharpBusy = false;
 function needsSharpPreview(item) {
   if (!item) return false;
   if (state.tab === "merge") return !!item.bytes;
-  if (state.tab === "split" || state.tab === "compress") return !!state.workBytes && !!item.page;
+  if (state.tab === "split" || state.tab === "compress" || state.tab === "organize") return !!(item.bytes || state.workBytes) && !!item.page;
   return false;
 }
 function queueSharp(i) {
   if (!Number.isInteger(i) || i < 0) return;
-  if (!["merge", "split", "compress"].includes(state.tab)) return;
+  if (!["merge", "split", "compress", "organize"].includes(state.tab)) return;
   if (!sharpQueue.includes(i)) sharpQueue.unshift(i);
   pumpSharp();
 }
@@ -2313,7 +2353,9 @@ async function loadWorkPdf(file, kind) {
         name: `Page ${p}`,
         page: p,
         picked: true,
-        sharp: false
+        sharp: false,
+        bytes,
+        srcName: file.name
       });
     }
     state.workSel = 0;
@@ -2457,6 +2499,97 @@ async function printSplitPdf() {
     const out = await buildSplitBlob();
     if (!out) return;
     await printBlob(out.blob);
+    setStatus("Print dialog opened.");
+  } catch (e) {
+    setStatus("Could not print: " + e.message);
+  }
+  setBusy(false);
+}
+async function addOrganizePdfs(list) {
+  const pdfs = [...list].filter(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
+  if (!pdfs.length) return;
+  const addEl = document.getElementById("orgAddFiles");
+  if (addEl) addEl.value = "";
+  if (!state.workPages.length) {
+    await loadWorkPdf(pdfs[0], "organize");
+    if (pdfs.length > 1) await appendOrganizePdfs(pdfs.slice(1));
+    return;
+  }
+  await appendOrganizePdfs(pdfs);
+}
+async function appendOrganizePdfs(pdfs) {
+  pushHist();
+  setBusy(true);
+  try {
+    for (const file of pdfs) {
+      const bytes = new Uint8Array((await file.arrayBuffer()).slice(0));
+      const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+      const base = (file.name || "document").replace(/\.pdf$/i, "") || "document";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        setStatus(`Adding ${base} ${p}/${pdf.numPages}…`);
+        const thumb = await renderPdfPage(pdf, p, 240, 0.82);
+        state.workPages.push({
+          url: thumb.url,
+          thumbUrl: thumb.url,
+          w: thumb.w,
+          h: thumb.h,
+          name: `${base} · ${p}`,
+          page: p,
+          picked: true,
+          sharp: false,
+          bytes,
+          pdfPromise: Promise.resolve(pdf),
+          srcName: file.name
+        });
+      }
+    }
+    state.workKind = "organize";
+    rebuildStrip();
+    renderStage();
+    setStatus(`${state.workPages.length} pages. Drag the strip to sort.`);
+    syncSizeMeter();
+  } catch (e) {
+    setStatus("Could not add PDF: " + e.message);
+  }
+  setBusy(false);
+}
+async function buildOrganizeBlob() {
+  if (!state.workPages.length || !needPdfLib()) return null;
+  const dest = await PDFLib.PDFDocument.create();
+  const cache = new Map();
+  for (const item of state.workPages) {
+    const bytes = item.bytes || state.workBytes;
+    if (!bytes || !item.page) continue;
+    let src = cache.get(bytes);
+    if (!src) {
+      src = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+      cache.set(bytes, src);
+    }
+    const [copied] = await dest.copyPages(src, [item.page - 1]);
+    addPdfTurn(copied, extraTurn(item));
+    dest.addPage(copied);
+  }
+  if (!dest.getPageCount()) return null;
+  return new Blob([await dest.save()], { type: "application/pdf" });
+}
+async function downloadOrganizePdf() {
+  setBusy(true);
+  try {
+    const blob = await buildOrganizeBlob();
+    if (!blob) return;
+    downloadBlob(blob, folioDownloadName("organized", state.workName, state.workPages.length + "p", "pdf"));
+    setStatus(`Organized PDF downloaded · ${state.workPages.length} page${state.workPages.length === 1 ? "" : "s"}.`);
+  } catch (e) {
+    setStatus("Could not organize: " + e.message);
+  }
+  setBusy(false);
+}
+async function printOrganizePdf() {
+  setBusy(true);
+  try {
+    const blob = await buildOrganizeBlob();
+    if (!blob) return;
+    await printBlob(blob);
     setStatus("Print dialog opened.");
   } catch (e) {
     setStatus("Could not print: " + e.message);
@@ -2630,6 +2763,19 @@ document.getElementById("splitClearBtn").onclick = () => {
   syncSizeMeter();
 };
 document.getElementById("splitRange")?.addEventListener("change", applySplitRange);
+document.getElementById("orgAddFiles")?.addEventListener("change", e => addOrganizePdfs(e.target.files));
+document.getElementById("orgOpenBtn")?.addEventListener("click", () => document.getElementById("workPdfFile").click());
+document.getElementById("orgAddBtn")?.addEventListener("click", () => document.getElementById("orgAddFiles").click());
+document.getElementById("orgDlBtn")?.addEventListener("click", () => downloadOrganizePdf());
+document.getElementById("orgPrintBtn")?.addEventListener("click", () => printOrganizePdf());
+document.getElementById("orgDelBtn")?.addEventListener("click", () => {
+  if (state.workPages.length) removeAt(sel());
+});
+document.getElementById("orgClearBtn")?.addEventListener("click", () => {
+  pushHist();
+  clearWork(); rebuildStrip(); renderStage(); setStatus("Open a PDF to organize.");
+  syncSizeMeter();
+});
 document.getElementById("compressOpenBtn").onclick = () => document.getElementById("compressFiles").click();
 document.getElementById("compressDlBtn").onclick = () => downloadCompressed();
 document.getElementById("compressPrintBtn").onclick = () => printCompressed();
@@ -2705,6 +2851,37 @@ document.getElementById("textClearBtn")?.addEventListener("click", () => {
   setStatus("Text cleared.");
   syncSizeMeter();
 });
+function syncLoremLabels() {
+  const kind = document.getElementById("loremKind")?.value || "paragraphs";
+  const unit = kind === "sentences" ? "sentence" : kind === "list" ? "item" : kind === "words" ? "block" : "paragraph";
+  const w = document.getElementById("loremWordsLbl");
+  const c = document.getElementById("loremCharsLbl");
+  if (w) w.textContent = `Words per ${unit}`;
+  if (c) c.textContent = `Characters per ${unit}`;
+}
+document.getElementById("loremBtn")?.addEventListener("click", () => {
+  if (!textInput) return;
+  pushHist();
+  const kind = document.getElementById("loremKind")?.value || "paragraphs";
+  const count = Number(document.getElementById("loremCount")?.value) || 3;
+  const classic = !!document.getElementById("loremClassic")?.checked;
+  const words = Number(document.getElementById("loremWords")?.value) || 0;
+  const chars = Number(document.getElementById("loremChars")?.value) || 0;
+  textInput.value = generateLorem(kind, count, classic, { words, chars });
+  textInput.focus();
+  textInput.setSelectionRange(0, 0);
+  syncTextStats();
+  saveTextDesk();
+  syncSizeMeter();
+  const label = kind === "list" ? "list items" : kind;
+  const size = [words ? words + " words" : "", chars ? chars + " characters" : ""].filter(Boolean).join(" · ");
+  setStatus(`Generated ${count} ${label}${size ? " · " + size + " each" : ""}.`);
+});
+document.getElementById("loremKind")?.addEventListener("change", () => { syncLoremLabels(); saveMenu(); });
+document.getElementById("loremCount")?.addEventListener("change", saveMenu);
+document.getElementById("loremWords")?.addEventListener("change", saveMenu);
+document.getElementById("loremChars")?.addEventListener("change", saveMenu);
+document.getElementById("loremClassic")?.addEventListener("change", saveMenu);
 loadTextDesk();
 
 document.getElementById("zoomOut").onclick = () => bumpViewZoom(-ZOOM_STEP);
@@ -2786,7 +2963,7 @@ syncSizeMeter();
 pushHist();
 (function bootTab() {
   const s = readStore();
-  const ok = ["to-pdf", "from-pdf", "id-card", "merge", "split", "compress", "text"];
+  const ok = ["to-pdf", "from-pdf", "id-card", "merge", "split", "organize", "compress", "text"];
   const tab = ok.includes(s.tab) ? s.tab : "to-pdf";
   if (s.rail === true || localStorage.getItem("folio-rail") === "1") setRailCollapsed(true, false);
   setTab(tab);

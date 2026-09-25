@@ -90,6 +90,106 @@ export function textStats(s) {
   return { chars, words, lines };
 }
 
+const LOREM_WORDS = [
+  "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
+  "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore",
+  "magna", "aliqua", "enim", "ad", "minim", "veniam", "quis", "nostrud",
+  "exercitation", "ullamco", "laboris", "nisi", "aliquip", "ex", "ea",
+  "commodo", "consequat", "duis", "aute", "irure", "in", "reprehenderit",
+  "voluptate", "velit", "esse", "cillum", "fugiat", "nulla", "pariatur",
+  "excepteur", "sint", "occaecat", "cupidatat", "non", "proident", "sunt",
+  "culpa", "qui", "officia", "deserunt", "mollit", "anim", "id", "est", "laborum",
+  "tempor", "vitae", "massa", "placerat", "phasellus", "viverra", "integer",
+  "nec", "odio", "praesent", "libero", "sagittis", "quisque", "augue", "purus"
+];
+const LOREM_CLASSIC = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+
+function loremPick(n, start) {
+  const out = [];
+  let i = start || 0;
+  for (let k = 0; k < n; k++) {
+    out.push(LOREM_WORDS[i % LOREM_WORDS.length]);
+    i += 1 + ((k * 3) % 2);
+  }
+  return out;
+}
+function loremSentence(words) {
+  const list = words.slice();
+  if (!list.length) return "";
+  list[0] = list[0].charAt(0).toUpperCase() + list[0].slice(1);
+  return list.join(" ") + ".";
+}
+function loremWordsToText(words, asList) {
+  if (asList) {
+    const line = words.slice();
+    if (line[0]) line[0] = line[0].charAt(0).toUpperCase() + line[0].slice(1);
+    return "• " + line.join(" ");
+  }
+  const sentences = [];
+  let i = 0;
+  while (i < words.length) {
+    const n = Math.min(words.length - i, 8 + (i % 5));
+    sentences.push(loremSentence(words.slice(i, i + n)));
+    i += n;
+  }
+  return sentences.join(" ");
+}
+function trimLoremChars(text, n) {
+  if (text.length <= n) return text;
+  let cut = text.slice(0, Math.max(1, n));
+  const sp = cut.lastIndexOf(" ");
+  if (sp > n * 0.55) cut = cut.slice(0, sp);
+  return cut.replace(/[,\s.;:]+$/, "") + ".";
+}
+function loremUnit(wordTarget, charTarget, start, classicLead, asList) {
+  const wantWords = wordTarget > 0 ? wordTarget : (charTarget > 0 ? 80 : 40);
+  let words = classicLead
+    ? LOREM_CLASSIC.replace(/[.,]/g, "").toLowerCase().split(/\s+/)
+    : [];
+  let i = start || 0;
+  while (words.length < wantWords) {
+    words.push(LOREM_WORDS[i % LOREM_WORDS.length]);
+    i += 1 + (words.length % 2);
+  }
+  let text = loremWordsToText(words, asList);
+  if (charTarget > 0) {
+    while (text.length < charTarget && words.length < 800) {
+      words.push(LOREM_WORDS[i % LOREM_WORDS.length]);
+      i += 1;
+      text = loremWordsToText(words, asList);
+    }
+    if (text.length > charTarget) text = trimLoremChars(text, charTarget);
+  }
+  return text;
+}
+export function generateLorem(kind, count, classic = true, size = {}) {
+  const n = Math.max(1, Math.min(20, Number(count) || 1));
+  const words = Math.max(0, Math.min(800, Number(size.words) || 0));
+  const chars = Math.max(0, Math.min(8000, Number(size.chars) || 0));
+  if (kind === "words") {
+    return loremUnit(words || n, chars, 0, classic, false);
+  }
+  if (kind === "sentences") {
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      parts.push(loremUnit(words || 10, chars, i * 7, classic && i === 0, false).replace(/\s+/g, " "));
+    }
+    return parts.join(" ");
+  }
+  if (kind === "list") {
+    const items = [];
+    for (let i = 0; i < n; i++) {
+      items.push(loremUnit(words || 4, chars, i * 5, false, true));
+    }
+    return items.join("\n");
+  }
+  const blocks = [];
+  for (let p = 0; p < n; p++) {
+    blocks.push(loremUnit(words || 50, chars, p * 13, classic && p === 0, false));
+  }
+  return blocks.join("\n\n");
+}
+
 export function applyTextOp(op, s) {
   const t = String(s || "");
   if (op === "upper") return t.toLocaleUpperCase();

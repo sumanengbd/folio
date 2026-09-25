@@ -9,6 +9,7 @@
     "id-card": 1,
     merge: 1,
     split: 1,
+    organize: 1,
     compress: 1,
     text: 1
   };
@@ -17,8 +18,9 @@
     "from-pdf": ["Drop a PDF onto the desk", "Each page becomes an image. Scroll the middle to see every page in order.", "Open PDF"],
     merge: ["Drop PDFs to merge", "Add several files, then drag the strip to set order.", "Add PDFs"],
     split: ["Drop a PDF to split", "Type a range or click thumbs to pick pages.", "Open PDF"],
+    organize: ["Drop a PDF to organize", "Drag the strip to sort pages. Add or delete pages, then download.", "Open PDF"],
     compress: ["Drop a PDF or images", "Choose quality, then download a smaller file.", "Open files"],
-    text: ["Type or paste text", "Change case, copy, download, or print. Nothing is uploaded.", "Open files"],
+    text: ["Type or paste text", "Generate Lorem Ipsum, change case, copy, or download. Nothing is uploaded.", "Open files"],
     "id-card": ["Drop card photos", "Front on top, back below.", "Open photo"]
   };
   function readStore() {
@@ -60,6 +62,19 @@
     sel("idPlace", s.idPlace);
     sel("imgFormat", s.imgFormat);
     sel("compressQuality", s.compressQuality);
+    sel("loremKind", s.loremKind);
+    sel("loremCount", s.loremCount);
+    var loremWords = document.getElementById("loremWords");
+    var loremChars = document.getElementById("loremChars");
+    if (loremWords && s.loremWords != null && s.loremWords !== "") loremWords.value = s.loremWords;
+    if (loremChars && s.loremChars != null) loremChars.value = s.loremChars;
+    var loremClassic = document.getElementById("loremClassic");
+    if (loremClassic && typeof s.loremClassic === "boolean") loremClassic.checked = s.loremClassic;
+    var unit = (s.loremKind === "sentences") ? "sentence" : (s.loremKind === "list") ? "item" : (s.loremKind === "words") ? "block" : "paragraph";
+    var wl = document.getElementById("loremWordsLbl");
+    var cl = document.getElementById("loremCharsLbl");
+    if (wl) wl.textContent = "Words per " + unit;
+    if (cl) cl.textContent = "Characters per " + unit;
     var rot = document.getElementById("rotateMatch");
     if (rot && typeof s.rotateMatch === "boolean") rot.checked = s.rotateMatch;
     var shell = document.querySelector(".shell");
@@ -82,6 +97,7 @@
     vis("sideIdCard", tab === "id-card");
     vis("sideMerge", tab === "merge");
     vis("sideSplit", tab === "split");
+    vis("sideOrganize", tab === "organize");
     vis("sideCompress", tab === "compress");
     vis("sideText", tab === "text");
     vis("idDesk", tab === "id-card");
@@ -92,6 +108,7 @@
       "id-card": "tabIdCard",
       merge: "tabMerge",
       split: "tabSplit",
+      organize: "tabOrganize",
       compress: "tabCompress",
       text: "tabText"
     };
@@ -115,7 +132,7 @@
       if (canvas) canvas.classList.add("has-pages");
       if (add) add.style.display = "none";
     } else if (add) {
-      add.style.display = tab === "to-pdf" || tab === "merge" ? "" : "none";
+      add.style.display = tab === "to-pdf" || tab === "merge" || tab === "organize" ? "" : "none";
     }
     function reveal() {
       var sheet = document.getElementById("idSheet");
