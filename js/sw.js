@@ -1,4 +1,4 @@
-const VERSION = "1.0.16";
+const VERSION = "1.0.35";
 const CACHE = "folio-v" + VERSION;
 const SHELL = [
   "./index.html",
@@ -46,11 +46,26 @@ self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  const live = event.request.mode === "navigate" || /\.(html|css|js)$/i.test(url.pathname);
   event.respondWith((async () => {
-    let cached = await caches.match(event.request, { ignoreSearch: true });
-    if (!cached && event.request.mode === "navigate") {
-      cached = await caches.match("./index.html", { ignoreSearch: true });
+    if (live) {
+      try {
+        const res = await fetch(event.request, { cache: "reload" });
+        if (res.ok) {
+          const cache = await caches.open(CACHE);
+          cache.put(event.request, res.clone());
+        }
+        return res;
+      } catch {
+        const cached = await caches.match(event.request, { ignoreSearch: true });
+        if (cached) return cached;
+        if (event.request.mode === "navigate") {
+          return caches.match("./index.html", { ignoreSearch: true });
+        }
+        throw new Error("offline");
+      }
     }
+    let cached = await caches.match(event.request, { ignoreSearch: true });
     if (cached) return cached;
     try {
       const res = await fetch(event.request);
@@ -60,9 +75,6 @@ self.addEventListener("fetch", event => {
       }
       return res;
     } catch {
-      if (event.request.mode === "navigate") {
-        return caches.match("./index.html", { ignoreSearch: true });
-      }
       throw new Error("offline");
     }
   })());

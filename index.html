@@ -11,10 +11,10 @@
 <meta name="creator" content="Suman Ali">
 <link rel="author" href="https://github.com/sumanengbd/">
 <link rel="canonical" href="https://sumanengbd.github.io/folio/">
-<meta name="theme-color" content="#4f46e5">
+<meta name="theme-color" content="#d9d1c3">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Folio">
 <meta name="application-name" content="Folio">
 <meta property="og:type" content="website">
@@ -30,8 +30,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=80">
-<script src="js/boot.js?v=34"></script>
+<link rel="stylesheet" href="css/app.css?v=98">
+<script src="js/boot.js?v=42"></script>
 <script src="js/protect.js?v=31"></script>
 <script src="js/vendor/sortable.min.js"></script>
 <script src="js/vendor/jspdf.umd.min.js"></script>
@@ -49,7 +49,7 @@
       <button type="button" class="logo" id="railToggle" aria-label="Collapse" aria-expanded="true" title="Collapse">F</button>
       <div class="brand-copy">
         <strong>Folio</strong>
-        <em>Private PDF studio</em>
+        <em>PDF studio</em>
       </div>
     </div>
     <div class="rail-scroll" id="railScroll">
@@ -73,6 +73,10 @@
     <button type="button" id="tabOrganize" data-tab="organize" title="Organize PDF">
       <span class="rail-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="7" height="9" rx="1"/><rect x="14" y="4" width="7" height="9" rx="1"/><path d="M6.5 16.5 4 19l2.5 2.5M17.5 16.5 20 19l-2.5 2.5M4 19h16"/></svg></span>
       <span class="rail-label">Organize PDF</span>
+    </button>
+    <button type="button" id="tabEdit" data-tab="edit" title="Edit PDF">
+      <span class="rail-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+      <span class="rail-label">Edit PDF</span>
     </button>
     <button type="button" id="tabCompress" data-tab="compress" title="Compress">
       <span class="rail-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 8 4 12l4 4M16 8l4 4-4 4M10 12h4"/></svg></span>
@@ -114,14 +118,15 @@
 
   <main class="canvas" id="canvas">
     <div id="emptyHint" class="hint">
-      <div class="hint-stack" aria-hidden="true">
-        <span></span><span></span><span></span>
-        <em>+</em>
+      <div class="hint-mark" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m8 8 4-4 4 4"/><rect x="4" y="16" width="16" height="5" rx="1.5"/></svg>
       </div>
+      <span class="hint-kicker">Drop files</span>
       <b id="hintTitle">Drop images onto the desk</b>
       <div id="hintText">They become PDF pages. Scroll the middle to read the full document in order.</div>
       <button class="btn primary btn-inline" type="button" id="chooseBtn">Open files</button>
-      <div class="hint-drop">PNG, JPG, WEBP · or click to open</div>
+      <div class="hint-chips" id="hintChips"><span>PNG</span><span>JPG</span><span>WEBP</span></div>
+      <div class="hint-drop" id="hintDrop">or click anywhere to browse</div>
     </div>
     <div id="idDesk" class="id-desk hidden">
       <div class="id-sheet pos-center" id="idSheet">
@@ -150,7 +155,8 @@
       <textarea id="textInput" placeholder="Type or paste text here…" spellcheck="true"></textarea>
     </div>
     <div id="stageStack" class="stage-stack hidden"></div>
-    <div id="nameBar" class="name-bar hidden"><span id="nameBarText"></span></div>
+    <div id="nameBar" class="name-bar hidden"><span class="name-page" id="nameBarPage" hidden></span><span id="nameBarText"></span></div>
+    <button type="button" class="inspect-btn" id="inspectBtn" aria-expanded="false">Options</button>
     <div class="zoom-bar" id="zoomBar">
       <button type="button" id="undoBtn" title="Undo (Ctrl+Z)" disabled aria-label="Undo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
@@ -176,8 +182,8 @@
 
   <aside class="side" id="sideToPdf">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Images → PDF</h2>
-      <p class="side-lead">Turn photos into PDF pages. Nothing is uploaded.</p>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Images → PDF</h2>
+      <p class="side-lead">Turn photos into PDF pages. Set quality and page numbers. Nothing is uploaded.</p>
     </div>
     <div class="field"><label>Page size</label>
       <select id="pageSize">
@@ -185,7 +191,18 @@
         <option value="letter">Letter</option>
         <option value="legal">Legal</option>
         <option value="a5">A5</option>
+        <option value="custom">Custom mm</option>
       </select>
+    </div>
+    <div class="field-row" id="customSizeRow" hidden>
+      <div class="field">
+        <label class="field-label" for="pageW">Width mm</label>
+        <input id="pageW" type="number" min="30" max="1200" step="0.1" value="210" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label class="field-label" for="pageH">Height mm</label>
+        <input id="pageH" type="number" min="30" max="1200" step="0.1" value="297" inputmode="decimal">
+      </div>
     </div>
     <div class="field-row portrait-only" id="orientRow">
       <div class="field field-orient">
@@ -219,6 +236,36 @@
         <option value="10">10 mm</option>
         <option value="15">15 mm</option>
       </select>
+    </div>
+    <div class="field"><label>PDF quality</label>
+      <select id="pdfQuality">
+        <option value="low">Smaller file</option>
+        <option value="medium" selected>Balanced</option>
+        <option value="high">Sharper</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="field-label" id="pageNumsLbl">Page numbers</span>
+      <label class="toggle" aria-labelledby="pageNumsLbl">
+        <input id="pageNums" type="checkbox">
+        <span class="toggle-face">
+          <span class="toggle-copy"><span class="off">Off</span><span class="on">On</span></span>
+          <span class="switch" aria-hidden="true"></span>
+        </span>
+      </label>
+    </div>
+    <div class="field" id="pageNumPosField" hidden>
+      <label>Number position</label>
+      <select id="pageNumPos">
+        <option value="bottom" selected>Bottom</option>
+        <option value="top">Top</option>
+      </select>
+    </div>
+    <div class="field"><label>Watermark</label>
+      <input id="watermark" type="text" placeholder="Optional text on every page">
+    </div>
+    <div class="field"><label>File name</label>
+      <input data-out-name type="text" placeholder="Optional, without .pdf">
     </div>
     <div id="imgAdjust" hidden>
       <div class="field">
@@ -278,6 +325,7 @@
       </div>
     </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
     </div>
@@ -293,7 +341,7 @@
 
   <aside class="side hidden" id="sideFromPdf">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> PDF → Images</h2>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> PDF → Images</h2>
       <p class="side-lead">Save each page as an image. Type a range if you need only some pages.</p>
     </div>
     <div class="field"><label>Extract</label>
@@ -320,6 +368,7 @@
       </select>
     </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Source PDF</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated images</span><b data-size="out">—</b></div>
     </div>
@@ -340,7 +389,7 @@
 
   <aside class="side hidden" id="sideIdCard">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> ID Card</h2>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> ID Card</h2>
       <p class="side-lead">Place front and back on one sheet. Works for NID, bank card, or passport photo.</p>
     </div>
     <div class="field">
@@ -400,6 +449,7 @@
       <input id="idZoom" type="range" min="100" max="280" value="100">
     </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Photos</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
     </div>
@@ -420,10 +470,14 @@
 
   <aside class="side hidden" id="sideMerge">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Merge PDFs</h2>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Merge PDFs</h2>
       <p class="side-lead">Combine several PDFs into one file. Drag the strip to set order.</p>
     </div>
+    <div class="field"><label>File name</label>
+      <input data-out-name type="text" placeholder="Optional, without .pdf">
+    </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
     </div>
@@ -440,13 +494,24 @@
 
   <aside class="side hidden" id="sideSplit">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Split PDF</h2>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Split PDF</h2>
       <p class="side-lead">Keep only the pages you need. Type a range or tap thumbs to pick them.</p>
     </div>
     <div class="field"><label>Pages</label>
       <input id="splitRange" type="text" placeholder="All, or 1–3, 5, 8">
     </div>
+    <div class="btn-row field">
+      <button id="splitAllBtn" class="btn" type="button">All pages</button>
+      <button id="splitNoneBtn" class="btn" type="button">None</button>
+    </div>
+    <div class="field"><label>Split every N pages</label>
+      <input id="splitEvery" type="number" min="0" max="200" value="" placeholder="Off — or 2, 5, 10…" inputmode="numeric">
+    </div>
+    <div class="field"><label>File name</label>
+      <input data-out-name type="text" placeholder="Optional, without .pdf">
+    </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Source PDF</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
     </div>
@@ -456,7 +521,7 @@
         <button id="splitDlBtn" class="btn primary" type="button" disabled>Download PDF</button>
         <button id="splitPrintBtn" class="btn" type="button" disabled>Print</button>
       </div>
-      <button id="splitEachBtn" class="btn" type="button" disabled>Each page ZIP</button>
+      <button id="splitEachBtn" class="btn" type="button" disabled>Parts ZIP</button>
       <button id="splitClearBtn" class="btn ghost" type="button">Clear</button>
     </div>
     <div class="meta" id="splitNote">Open a PDF. Type a range or click thumbs to pick pages.</div>
@@ -464,10 +529,44 @@
 
   <aside class="side hidden" id="sideOrganize">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Organize PDF</h2>
-      <p class="side-lead">Sort, add, or delete pages. Drag the strip to set order. Nothing is uploaded.</p>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Organize PDF</h2>
+      <p class="side-lead">Sort, add PDFs or photos, duplicate, or insert blank pages. Nothing is uploaded.</p>
+    </div>
+    <div class="org-tools">
+      <div class="btn-row">
+        <button id="orgDupBtn" class="btn" type="button" disabled>Duplicate</button>
+        <button id="orgBlankBtn" class="btn" type="button">Blank page</button>
+      </div>
+      <div class="btn-row">
+        <button id="orgRevBtn" class="btn" type="button" disabled>Reverse</button>
+        <button id="orgRotBtn" class="btn" type="button" disabled>Rotate 90°</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="field-label" id="orgPageNumsLbl">Page numbers</span>
+      <label class="toggle" aria-labelledby="orgPageNumsLbl">
+        <input id="orgPageNums" type="checkbox">
+        <span class="toggle-face">
+          <span class="toggle-copy"><span class="off">Off</span><span class="on">On</span></span>
+          <span class="switch" aria-hidden="true"></span>
+        </span>
+      </label>
+    </div>
+    <div class="field" id="orgPageNumPosField" hidden>
+      <label>Number position</label>
+      <select id="orgPageNumPos">
+        <option value="bottom" selected>Bottom</option>
+        <option value="top">Top</option>
+      </select>
+    </div>
+    <div class="field"><label>Watermark</label>
+      <input id="orgWatermark" type="text" placeholder="Optional text on every page">
+    </div>
+    <div class="field"><label>File name</label>
+      <input data-out-name type="text" placeholder="Optional, without .pdf">
     </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
     </div>
@@ -486,9 +585,100 @@
     <div class="meta" id="orgNote">Open a PDF. Drag thumbs to sort, add more pages, or delete ones you do not need.</div>
   </aside>
 
+  <aside class="side hidden" id="sideEdit">
+    <div class="side-head">
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Edit PDF</h2>
+      <p class="side-lead">Click text on the page to change it. Change font and size. Add new text, highlight, cover, or a stamp.</p>
+    </div>
+    <div class="edit-tools" id="editTools">
+      <button type="button" class="btn on" data-edit-tool="edit">Edit text</button>
+      <button type="button" class="btn" data-edit-tool="text">Add text</button>
+      <button type="button" class="btn" data-edit-tool="highlight">Highlight</button>
+      <button type="button" class="btn" data-edit-tool="redact">Cover</button>
+      <button type="button" class="btn" data-edit-tool="box">Box</button>
+      <button type="button" class="btn" data-edit-tool="stamp">Stamp</button>
+      <button type="button" class="btn" data-edit-tool="select">Move</button>
+    </div>
+    <div class="field">
+      <label class="field-label" for="editFont">Font</label>
+      <select id="editFont">
+        <option value="sans" selected>Sans</option>
+        <option value="serif">Serif</option>
+        <option value="mono">Mono</option>
+        <option value="display">Display</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label class="field-label" for="editSize">Size</label>
+        <input id="editSize" type="number" min="8" max="96" step="1" value="16">
+      </div>
+      <div class="field">
+        <label class="field-label" for="editColor">Color</label>
+        <input id="editColor" type="color" value="#111111">
+      </div>
+    </div>
+    <div class="btn-row field trio">
+      <button type="button" class="btn" id="editBoldBtn">Bold</button>
+      <button type="button" class="btn" id="editItalicBtn">Italic</button>
+      <button type="button" class="btn" id="editUnderlineBtn">Underline</button>
+    </div>
+    <div class="btn-row field trio" id="editAlign">
+      <button type="button" class="btn on" data-edit-align="left">Left</button>
+      <button type="button" class="btn" data-edit-align="center">Center</button>
+      <button type="button" class="btn" data-edit-align="right">Right</button>
+    </div>
+    <div class="field">
+      <label class="field-label" for="editFind">Find</label>
+      <input id="editFind" type="text" placeholder="Text on the page">
+    </div>
+    <div class="field">
+      <label class="field-label" for="editReplace">Replace with</label>
+      <input id="editReplace" type="text" placeholder="New text">
+    </div>
+    <div class="btn-row field">
+      <button type="button" class="btn" id="editReplaceBtn">Replace page</button>
+      <button type="button" class="btn" id="editReplaceAllBtn">Replace all</button>
+    </div>
+    <div class="field">
+      <span class="field-label" id="editAllLbl">Apply to all pages</span>
+      <label class="toggle" aria-labelledby="editAllLbl">
+        <input id="editAll" type="checkbox">
+        <span class="toggle-face">
+          <span class="toggle-copy"><span class="off">This page</span><span class="on">All pages</span></span>
+          <span class="switch" aria-hidden="true"></span>
+        </span>
+      </label>
+    </div>
+    <div class="field"><label>File name</label>
+      <input data-out-name type="text" placeholder="Optional, without .pdf">
+    </div>
+    <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
+      <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
+      <div class="size-row"><span>Estimated PDF</span><b data-size="out">—</b></div>
+    </div>
+    <div class="side-actions">
+      <div class="btn-row">
+        <button id="editOpenBtn" class="btn" type="button">Open PDF</button>
+        <button id="editStampBtn" class="btn" type="button">Stamp image</button>
+      </div>
+      <div class="btn-row">
+        <button id="editDlBtn" class="btn primary" type="button" disabled>Download PDF</button>
+        <button id="editPrintBtn" class="btn" type="button" disabled>Print</button>
+      </div>
+      <button id="editDelMarkBtn" class="btn" type="button" disabled>Delete mark</button>
+      <button id="editDupBtn" class="btn" type="button" disabled>Duplicate</button>
+      <button id="editResetBtn" class="btn" type="button" disabled>Reset line</button>
+      <button id="editClearMarksBtn" class="btn" type="button" disabled>Clear marks</button>
+      <button id="editClearBtn" class="btn ghost" type="button">Clear</button>
+    </div>
+    <div class="meta" id="editNote">Open a PDF. Click any line to type over it, or add new text.</div>
+  </aside>
+
   <aside class="side hidden" id="sideCompress">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Compress</h2>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Compress</h2>
       <p class="side-lead">Make a smaller PDF or image. Choose quality, then download.</p>
     </div>
     <div class="field"><label>Quality</label>
@@ -499,6 +689,7 @@
       </select>
     </div>
     <div class="size-meter" data-size-meter>
+      <div class="size-row size-pages"><span>Pages</span><b data-size="pages">—</b></div>
       <div class="size-row"><span>Source</span><b data-size="src">—</b></div>
       <div class="size-row"><span>Estimated file</span><b data-size="out">—</b></div>
     </div>
@@ -515,8 +706,11 @@
 
   <aside class="side hidden" id="sideText">
     <div class="side-head">
-      <h2><span class="side-kicker">Tool</span> <span class="side-sep" aria-hidden="true">›</span> Text tools</h2>
-      <p class="side-lead">Generate Lorem Ipsum, change case, copy, download, or print. Text stays on this device.</p>
+      <h2><span class="side-kicker">Inspector</span> <span class="side-sep" aria-hidden="true">›</span> Text tools</h2>
+      <p class="side-lead">Generate Lorem Ipsum, extract text from a PDF, change case, copy, or download. Nothing is uploaded.</p>
+    </div>
+    <div class="field">
+      <button id="textPdfBtn" class="btn" type="button">Extract text from PDF</button>
     </div>
     <div class="field-row">
       <div class="field">
@@ -588,6 +782,7 @@
     <div class="meta" id="textNote">0 words · 0 characters · 0 lines</div>
   </aside>
 
+  <div class="inspect-scrim" id="inspectScrim" hidden></div>
   <div class="strip" id="strip">
     <button type="button" class="add-tile" id="addTile" title="Add">+</button>
   </div>
@@ -597,13 +792,15 @@
 <input id="idFiles" type="file" accept="image/*" multiple>
 <input id="mergeFiles" type="file" accept="application/pdf,.pdf" multiple>
 <input id="workPdfFile" type="file" accept="application/pdf,.pdf">
-<input id="orgAddFiles" type="file" accept="application/pdf,.pdf" multiple>
+<input id="editStampFile" type="file" accept="image/*">
+<input id="orgAddFiles" type="file" accept="application/pdf,.pdf,image/*" multiple>
 <input id="compressFiles" type="file" accept="application/pdf,.pdf,image/*" multiple>
+<input id="textPdfFile" type="file" accept="application/pdf,.pdf">
 <div class="install-sheet hidden" id="installSheet" hidden>
   <div class="install-card">
     <b>Install Folio</b>
-    <p data-ios hidden>Tap the Share button, then <b style="color:#161616">Add to Home Screen</b>. Folio opens like an app and keeps working with no internet.</p>
-    <p data-chrome>Use the install icon in the address bar, or tap <b style="color:#161616">Install</b> in the left menu. After that it opens in its own window and works offline.</p>
+    <p data-ios hidden>Tap the Share button, then <b style="color:#c4b5fd">Add to Home Screen</b>. Folio opens like an app and keeps working with no internet.</p>
+    <p data-chrome>Use the install icon in the address bar, or tap <b style="color:#c4b5fd">Install</b> in the left menu. After that it opens in its own window and works offline.</p>
     <button class="btn primary" type="button" data-close>Got it</button>
   </div>
 </div>
@@ -616,7 +813,8 @@
       <li><kbd>Ctrl</kbd><kbd>Z</kbd> Undo</li>
       <li><kbd>Ctrl</kbd><kbd>Y</kbd> Redo</li>
       <li><kbd>R</kbd> Rotate page</li>
-      <li><kbd>Del</kbd> Remove page</li>
+      <li><kbd>Del</kbd> Remove page or mark</li>
+      <li><kbd>Ctrl</kbd><kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd> Bold, italic, underline</li>
       <li><kbd>Ctrl</kbd><kbd>+</kbd> / <kbd>−</kbd> Zoom</li>
       <li><kbd>?</kbd> This list</li>
     </ul>
@@ -626,6 +824,6 @@
 <div class="no-inspect-cover" aria-hidden="true">Developer tools are not allowed on this page.</div>
 <script>if (window.folioBoot) window.folioBoot();</script>
 <script src="js/stats.js?v=1"></script>
-<script type="module" src="js/app.js?v=41"></script>
+<script type="module" src="js/app.js?v=51"></script>
 </body>
 </html>

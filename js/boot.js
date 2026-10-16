@@ -1,6 +1,8 @@
 (function () {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(function () {});
+    navigator.serviceWorker.register("./sw.js").then(function (reg) {
+      try { reg.update(); } catch (e) {}
+    }).catch(function () {});
   }
   var KEY = "folio-ui";
   var TABS = {
@@ -10,18 +12,31 @@
     merge: 1,
     split: 1,
     organize: 1,
+    edit: 1,
     compress: 1,
     text: 1
   };
   var HINT = {
-    "to-pdf": ["Drop images onto the desk", "They become PDF pages. Scroll the middle to read the full document in order.", "Open images"],
-    "from-pdf": ["Drop a PDF onto the desk", "Each page becomes an image. Scroll the middle to see every page in order.", "Open PDF"],
-    merge: ["Drop PDFs to merge", "Add several files, then drag the strip to set order.", "Add PDFs"],
-    split: ["Drop a PDF to split", "Type a range or click thumbs to pick pages.", "Open PDF"],
-    organize: ["Drop a PDF to organize", "Drag the strip to sort pages. Add or delete pages, then download.", "Open PDF"],
-    compress: ["Drop a PDF or images", "Choose quality, then download a smaller file.", "Open files"],
+    "to-pdf": ["Drop images to begin", "Photos become PDF pages. Arrange them in the filmstrip, then download.", "Open images"],
+    "from-pdf": ["Drop a PDF to begin", "Each page becomes an image. Scroll the desk to review, then export.", "Open PDF"],
+    merge: ["Drop PDFs to merge", "Add files, drag the filmstrip to set order, then download one PDF.", "Add PDFs"],
+    split: ["Drop a PDF to split", "Pick pages in the filmstrip or type a range, then export.", "Open PDF"],
+    organize: ["Drop a PDF to organize", "Sort, rotate, add, or delete pages, then download.", "Open PDF"],
+    edit: ["Drop a PDF to edit", "Click text on the page to change it. Change font and size. Add text, highlight, or cover.", "Open PDF"],
+    compress: ["Drop a PDF or images", "Pick a quality preset, then download a smaller file.", "Open files"],
     text: ["Type or paste text", "Generate Lorem Ipsum, change case, copy, or download. Nothing is uploaded.", "Open files"],
-    "id-card": ["Drop card photos", "Front on top, back below.", "Open photo"]
+    "id-card": ["Drop card photos", "Front on top, back below. Files stay on this device.", "Open photo"]
+  };
+  var CHIPS = {
+    "to-pdf": ["PNG", "JPG", "WEBP"],
+    "from-pdf": ["PDF"],
+    merge: ["PDF"],
+    split: ["PDF"],
+    organize: ["PDF"],
+    edit: ["PDF"],
+    compress: ["PDF", "PNG", "JPG"],
+    text: ["TXT", "MD"],
+    "id-card": ["PNG", "JPG"]
   };
   function readStore() {
     try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; }
@@ -62,6 +77,23 @@
     sel("idPlace", s.idPlace);
     sel("imgFormat", s.imgFormat);
     sel("compressQuality", s.compressQuality);
+    sel("pdfQuality", s.pdfQuality);
+    sel("pageNumPos", s.pageNumPos);
+    sel("orgPageNumPos", s.orgPageNumPos);
+    var pageNums = document.getElementById("pageNums");
+    if (pageNums && typeof s.pageNums === "boolean") pageNums.checked = s.pageNums;
+    var orgPageNums = document.getElementById("orgPageNums");
+    if (orgPageNums && typeof s.orgPageNums === "boolean") orgPageNums.checked = s.orgPageNums;
+    if (s.pageW != null && document.getElementById("pageW")) document.getElementById("pageW").value = s.pageW;
+    if (s.pageH != null && document.getElementById("pageH")) document.getElementById("pageH").value = s.pageH;
+    if (s.watermark != null && document.getElementById("watermark")) document.getElementById("watermark").value = s.watermark;
+    if (s.orgWatermark != null && document.getElementById("orgWatermark")) document.getElementById("orgWatermark").value = s.orgWatermark;
+    var custom = document.getElementById("customSizeRow");
+    if (custom) custom.hidden = ((document.getElementById("pageSize") || {}).value !== "custom");
+    var posField = document.getElementById("pageNumPosField");
+    if (posField) posField.hidden = !(pageNums && pageNums.checked);
+    var orgPos = document.getElementById("orgPageNumPosField");
+    if (orgPos) orgPos.hidden = !(orgPageNums && orgPageNums.checked);
     sel("loremKind", s.loremKind);
     sel("loremCount", s.loremCount);
     var loremWords = document.getElementById("loremWords");
@@ -98,6 +130,7 @@
     vis("sideMerge", tab === "merge");
     vis("sideSplit", tab === "split");
     vis("sideOrganize", tab === "organize");
+    vis("sideEdit", tab === "edit");
     vis("sideCompress", tab === "compress");
     vis("sideText", tab === "text");
     vis("idDesk", tab === "id-card");
@@ -109,6 +142,7 @@
       merge: "tabMerge",
       split: "tabSplit",
       organize: "tabOrganize",
+      edit: "tabEdit",
       compress: "tabCompress",
       text: "tabText"
     };
@@ -125,6 +159,11 @@
     if (ht) ht.textContent = hint[0];
     if (hx) hx.textContent = hint[1];
     if (cb) cb.textContent = hint[2];
+    var chips = document.getElementById("hintChips");
+    if (chips) {
+      var tags = CHIPS[tab] || CHIPS["to-pdf"];
+      chips.innerHTML = tags.map(function (tag) { return "<span>" + tag + "</span>"; }).join("");
+    }
     if (tab === "id-card" || tab === "text") {
       vis("emptyHint", false);
       vis("stageStack", false);
